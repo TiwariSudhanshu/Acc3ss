@@ -1,3 +1,4 @@
+"use client"
 import { Wallet } from "lucide-react"
 import Image from "next/image"
 export default function Header() {
@@ -5,14 +6,14 @@ export default function Header() {
     <header className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-gray-800">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center space-x-8">
-          <div className="text-2xl font-bold text-white">
+          <button onClick={()=>{window.location.href="/"}} className="cursor-pointer">
             <Image 
             src="/logo.png"
              alt="logo"
              width={200}
              height={50}
              ></Image>
-          </div>
+          </button>
           <nav className="hidden md:flex space-x-6">
             <a href="#about" className="text-gray-300 hover:text-white transition-colors">
               About
