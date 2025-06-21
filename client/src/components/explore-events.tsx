@@ -1,7 +1,27 @@
+"use client"
 import { Calendar, MapPin, Users, Search, Filter } from "lucide-react"
+import { useState } from "react"
+import BuyTicketModal from "./buy-ticket-modal"
+
+interface Event {
+  id: number
+  title: string
+  image: string
+  date: string
+  time: string
+  location: string
+  price: string
+  attendees: number
+  category: string
+  status: string
+}
 
 export default function ExploreEvents() {
-  const events = [
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const events: Event[] = [
     {
       id: 1,
       title: "Web3 Summit 2024",
@@ -76,6 +96,27 @@ export default function ExploreEvents() {
     },
   ]
 
+  // Filter events based on search term
+  const filteredEvents = events.filter((event) => {
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      event.title.toLowerCase().includes(searchLower) ||
+      event.location.toLowerCase().includes(searchLower) ||
+      event.category.toLowerCase().includes(searchLower) ||
+      event.date.toLowerCase().includes(searchLower)
+    )
+  })
+
+  const handleEventClick = (event: Event) => {
+    setSelectedEvent(event)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedEvent(null)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 py-12">
       <div className="container mx-auto px-4">
@@ -95,6 +136,8 @@ export default function ExploreEvents() {
               <input
                 type="text"
                 placeholder="Search events..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-12 pr-4 py-3 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors"
               />
             </div>
@@ -121,11 +164,23 @@ export default function ExploreEvents() {
           </div>
         </div>
 
+        {/* Search Results Info */}
+        {searchTerm && (
+          <div className="mb-6">
+            <p className="text-gray-300">
+              {filteredEvents.length === 0
+                ? `No events found for "${searchTerm}"`
+                : `Found ${filteredEvents.length} event${filteredEvents.length !== 1 ? "s" : ""} for "${searchTerm}"`}
+            </p>
+          </div>
+        )}
+
         {/* Events Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {events.map((event) => (
-            <div
+          {filteredEvents.map((event) => (
+            <button
               key={event.id}
+              onClick={() => handleEventClick(event)}
               className="bg-gray-800/50 rounded-2xl overflow-hidden border border-gray-700 hover:border-orange-500/50 transition-all duration-300 group cursor-pointer"
             >
               <div className="relative">
@@ -176,22 +231,40 @@ export default function ExploreEvents() {
 
                 <div className="flex items-center justify-between">
                   <div className="text-2xl font-bold text-white">{event.price}</div>
-                  <button className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200">
+                  <div className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200">
                     {event.price === "Free" ? "Register" : "Buy Ticket"}
-                  </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
-        {/* Load More */}
-        <div className="text-center mt-12">
-          <button className="border border-gray-600 text-white hover:bg-gray-800 px-8 py-3 text-lg bg-transparent rounded-lg font-medium transition-all duration-200">
-            Load More Events
-          </button>
-        </div>
+        {/* No Results Message */}
+        {filteredEvents.length === 0 && searchTerm && (
+          <div className="text-center py-12">
+            <div className="text-gray-400 text-lg mb-4">No events found matching your search</div>
+            <button
+              onClick={() => setSearchTerm("")}
+              className="text-orange-400 hover:text-orange-300 transition-colors"
+            >
+              Clear search to see all events
+            </button>
+          </div>
+        )}
+
+        {/* Load More - only show if there are results and no search */}
+        {filteredEvents.length > 0 && !searchTerm && (
+          <div className="text-center mt-12">
+            <button className="border border-gray-600 text-white hover:bg-gray-800 px-8 py-3 text-lg bg-transparent rounded-lg font-medium transition-all duration-200">
+              Load More Events
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Buy Ticket Modal */}
+      <BuyTicketModal event={selectedEvent} isOpen={isModalOpen} onClose={handleCloseModal} />
     </div>
   )
 }

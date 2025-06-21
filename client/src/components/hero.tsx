@@ -25,12 +25,9 @@ export default function Hero() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white border-0 px-8 py-3 text-lg rounded-lg font-medium transition-all duration-200 flex items-center">
+            <button className="cursor-pointer bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white border-0 px-8 py-3 sm:px-12 text-lg rounded-lg font-medium transition-all duration-200 flex items-center">
               Get Started
               <ArrowRight className="w-5 h-5 ml-2" />
-            </button>
-            <button className="border border-gray-600 text-white hover:bg-gray-800 px-8 py-3 text-lg bg-transparent rounded-lg font-medium transition-all duration-200">
-              Learn More
             </button>
           </div>
         </div>
