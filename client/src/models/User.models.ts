@@ -8,6 +8,7 @@ const UserSchema = new mongoose.Schema({
     email: {
         type: String,
         unique: true,
+        required: true,
     },
     walletAddress: {
         type: String,
@@ -19,7 +20,8 @@ const UserSchema = new mongoose.Schema({
         default: "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
     },
     ticketsOwned:[{
-        type: String
+        type: String,
+        default: []
     }],
     eventsCreated: [{
         type: String
@@ -27,5 +29,6 @@ const UserSchema = new mongoose.Schema({
 }, {
     timestamps: true,   
 });
-const User = mongoose.model("User", UserSchema);
+
+const User =  mongoose.models.User || mongoose.model("User", UserSchema) ;
 export default User;
