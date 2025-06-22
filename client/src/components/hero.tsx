@@ -4,17 +4,18 @@ import { toast } from "sonner";
 import { useAccount, useConnect } from "wagmi";
 import RegisterModal from "./register-model";
 import { useState } from "react";
-import { useDispatch } from "react-redux";
+// import { useDispatch, useSelector } from "react-redux";
+import { useAppDispatch } from "@/store/hook";
 import { setUser } from "@/store/userSlice";
+import { useRouter } from "next/navigation";
 
 export default function Hero() {
   const { isConnected, address } = useAccount();
   const { connectAsync, connectors } = useConnect();
   const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();;
   const [loader, setLoader] = useState(false);
-  
-
+const router = useRouter();
 async function handleGetStarted() {
   setLoader(true);
   let walletAddress = address;
@@ -44,20 +45,15 @@ async function handleGetStarted() {
       toast.error("User not found. Please register first.");
       setRegisterModalOpen(true);
     } else {
-      const userData = {
-        name: data.user.name,
-        email: data.user.email,
-        walletAddress: data.user.walletAddress,
-        profilePicture: data.user.profilePicture || "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
-        ticketsOwned: data.user.ticketsOwned || [],
-        eventsCreated: data.user.eventsCreated || [],
-      };
-      
-      console.log("Found existing user, dispatching to Redux:", userData);
-      dispatch(setUser(userData));
-      console.log("Existing user data dispatched successfully");
-
-      window.location.href = "/explore";
+          dispatch(setUser({
+          name: data.user.name,
+          email: data.user.email,
+          walletAddress: data.user.walletAddress,
+          profilePicture: data.user.profilePicture || "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
+          ticketsOwned: data.user.ticketsOwned || [],
+          eventsCreated: data.user.eventsCreated || [],
+        }));
+      router.push("/explore");
     }
 
   } catch (error) {

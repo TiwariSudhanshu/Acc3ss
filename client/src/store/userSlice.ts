@@ -25,13 +25,9 @@ const userSlice = createSlice({
   initialState,
   reducers: {
     setUser(state, action: PayloadAction<Omit<UserState, "isLoggedIn">>) {
-      console.log("setUser action called with payload:", action.payload);
-      const newState = { ...action.payload, isLoggedIn: true };
-      console.log("New user state:", newState);
-      return newState;
+      return { ...action.payload, isLoggedIn: true };
     },
     logout(state) {
-      console.log("logout action called");
       return { ...initialState };
     },
     updateTickets(state, action: PayloadAction<string[]>) {
@@ -40,8 +36,18 @@ const userSlice = createSlice({
     updateEvents(state, action: PayloadAction<string[]>) {
       state.eventsCreated = action.payload;
     },
+    updateProfilePicture(state, action: PayloadAction<string>) {
+      state.profilePicture = action.payload;
+    },
   },
 });
 
-export const { setUser, logout, updateTickets, updateEvents } = userSlice.actions;
+export const {
+  setUser,
+  logout,
+  updateTickets,
+  updateEvents,
+  updateProfilePicture,
+} = userSlice.actions;
+
 export default userSlice.reducer;

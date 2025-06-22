@@ -32,16 +32,12 @@ interface OwnedTicket {
 export default function ProfileDashboard() {
   const [activeTab, setActiveTab] = useState<"attended" | "created" | "tickets">("attended")
    const userReal = useSelector((state: RootState) => state.user);
-  
-  // Debug logging
-  console.log("Redux user state:", userReal);
-  
   // Mock user data
   const user = {
-    name: userReal.name || "Guest User",
-    email: userReal.email || "guest@example.com",
-    avatar: userReal.profilePicture || "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
-    walletAddress: userReal.walletAddress || "0x0000...0000",
+    name: userReal.name,
+    email: userReal.email,
+    avatar: userReal.profilePicture,
+    walletAddress: userReal.walletAddress ,
     joinDate: "March 2023",
     totalEvents: 12,
     totalTickets: 8,
@@ -196,7 +192,7 @@ export default function ProfileDashboard() {
                 <h2 className="text-xl font-bold text-white mb-1">{user.name}</h2>
                 <p className="text-gray-400 text-sm mb-3">{user.email}</p>
                 <div className="bg-gray-700/50 rounded-lg p-2 mb-3">
-                  <p className="text-xs text-gray-300 font-mono">
+                  <p className="text-[11px] text-gray-300 font-mono">
                     {user.walletAddress}
                   </p>
                 </div>

@@ -4,8 +4,9 @@ import type React from "react"
 
 import { X, Wallet, User, Mail, CheckCircle } from "lucide-react"
 import { useAccount } from "wagmi"
-import { useDispatch } from "react-redux"
+import { useRouter } from "next/navigation"
 import { setUser } from "@/store/userSlice"
+import { useAppDispatch } from "@/store/hook"
 
 interface RegisterModalProps {
   isOpen: boolean
@@ -17,7 +18,7 @@ export default function RegisterModal({
   onClose,
 }: RegisterModalProps) {
 
-
+  const router = useRouter();
     const { address} = useAccount();
   const [formData, setFormData] = useState({
     name: "",
@@ -26,7 +27,7 @@ export default function RegisterModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState("")
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
 
   if (!isOpen) return null
 
@@ -79,21 +80,15 @@ export default function RegisterModal({
         onClose()
         setIsSuccess(false)
         setFormData({ name: "", email: "" })
-        
-        const userData = {
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          walletAddress: address || "",
-          profilePicture: "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
-          ticketsOwned: [],
-          eventsCreated: [],
-        };
-        
-        console.log("Dispatching user data to Redux:", userData);
-        dispatch(setUser(userData));
-        console.log("User data dispatched successfully");
-        
-        window.location.href = "/explore";
+         dispatch(setUser({
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            walletAddress: address ?? "",
+            profilePicture: "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
+            ticketsOwned: [],
+            eventsCreated: [],
+          }));
+        router.push("/explore");
       }, 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.")
