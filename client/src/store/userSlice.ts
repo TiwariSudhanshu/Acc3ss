@@ -39,6 +39,11 @@ const userSlice = createSlice({
     updateProfilePicture(state, action: PayloadAction<string>) {
       state.profilePicture = action.payload;
     },
+    updateUserDetails(state, action: PayloadAction<{ name: string; email: string }>) {
+  state.name = action.payload.name;
+  state.email = action.payload.email;
+}
+
   },
 });
 
@@ -48,6 +53,7 @@ export const {
   updateTickets,
   updateEvents,
   updateProfilePicture,
+  updateUserDetails,
 } = userSlice.actions;
 
 export default userSlice.reducer;

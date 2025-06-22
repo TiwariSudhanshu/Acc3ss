@@ -1,8 +1,10 @@
 "use client"
 import { useState } from "react"
-import { Calendar, MapPin, Users, Ticket, Plus, Edit, Settings, Trophy, Star } from "lucide-react"
+
+import { Calendar, MapPin, Users, Ticket, Plus, Settings, Trophy, Star } from "lucide-react"
 import { useSelector } from "react-redux"
-import { RootState } from "@/store"
+import type { RootState } from "@/store"
+import SettingsModal from "./settings-modal"
 
 interface Event {
   id: number
@@ -31,13 +33,16 @@ interface OwnedTicket {
 
 export default function ProfileDashboard() {
   const [activeTab, setActiveTab] = useState<"attended" | "created" | "tickets">("attended")
-   const userReal = useSelector((state: RootState) => state.user);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  const userReal = useSelector((state: RootState) => state.user)
+
   // Mock user data
   const user = {
     name: userReal.name,
     email: userReal.email,
     avatar: userReal.profilePicture,
-    walletAddress: userReal.walletAddress ,
+    walletAddress: userReal.walletAddress,
     joinDate: "March 2023",
     totalEvents: 12,
     totalTickets: 8,
@@ -166,6 +171,7 @@ export default function ProfileDashboard() {
     }
   }
 
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900">
       <div className="container mx-auto px-4 py-8">
@@ -181,9 +187,6 @@ export default function ProfileDashboard() {
                     alt={user.name}
                     className="w-24 h-24 rounded-full object-cover border-4 border-orange-500/30"
                   />
-                  <button className="absolute bottom-0 right-0 bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-full transition-colors">
-                    <Edit className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
 
@@ -192,9 +195,7 @@ export default function ProfileDashboard() {
                 <h2 className="text-xl font-bold text-white mb-1">{user.name}</h2>
                 <p className="text-gray-400 text-sm mb-3">{user.email}</p>
                 <div className="bg-gray-700/50 rounded-lg p-2 mb-3">
-                  <p className="text-[11px] text-gray-300 font-mono">
-                    {user.walletAddress}
-                  </p>
+                  <p className="text-[11px] text-gray-300 font-mono">{user.walletAddress}</p>
                 </div>
                 <p className="text-gray-500 text-sm">Member since {user.joinDate}</p>
               </div>
@@ -221,7 +222,10 @@ export default function ProfileDashboard() {
                   <Plus className="w-4 h-4 mr-2" />
                   Create Event
                 </button>
-                <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg font-medium transition-colors flex items-center justify-center">
+                <button
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg font-medium transition-colors flex items-center justify-center"
+                >
                   <Settings className="w-4 h-4 mr-2" />
                   Settings
                 </button>
@@ -460,6 +464,9 @@ export default function ProfileDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} user={user} />
     </div>
   )
 }
