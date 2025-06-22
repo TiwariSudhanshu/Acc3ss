@@ -39,7 +39,6 @@ contract Access is ERC721, Ownable {
         string memory uri
     ) external {
         require(bytes(name).length > 0, "Event name required");
-        require(price > 0, "Price must be greater than 0");
         require(maxTickets > 0, "Max tickets must be greater than 0");
         require(bytes(uri).length > 0, "Base URI required");
 
