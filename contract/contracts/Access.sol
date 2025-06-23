@@ -97,7 +97,7 @@ contract Access is ERC721, Ownable {
         return ev.maxTickets - ev.totalTicketsSold;
     }
 
-    function getEvent(uint256 eventId) external view returns (Event memory) {
+    function getEventDetails(uint256 eventId) external view returns (Event memory) {
         return events[eventId];
     }
 
