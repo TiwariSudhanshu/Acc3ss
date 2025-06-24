@@ -5,6 +5,8 @@ import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { formatEther } from "ethers"
+import ShareModal from "./share-model"
+import BuyTicketModal from "./buy-ticket-modal"
 
 interface Speaker {
   name: string
@@ -78,6 +80,8 @@ export default function EventDetails() {
   const [loading, setLoading] = useState(true)
   const [organizerLoading, setOrganizerLoading] = useState(false)
   const [eventData, setEventData] = useState<EventData | null>(null)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [buyTicketModalOpen, setBuyTicketModalOpen] = useState(false)
 
   // Convert IPFS URI to HTTP URL
   const convertIPFSToHTTP = (ipfsUri: string): string => {
@@ -210,41 +214,37 @@ export default function EventDetails() {
 
   const getEventData = async (eventId: string) => {
     setLoading(true)
+
+    // Try getting event from cache
+    const cached = localStorage.getItem("events")
+    const cachedEvents: EventData[] = cached ? JSON.parse(cached) : []
+    const cachedEvent = cachedEvents.find((e) => e.id === Number(eventId))
+
+    if (cachedEvent) {
+      setEventData(cachedEvent)
+    }
+
     try {
       const contract = await getContract()
       const eventDetails = await contract.getEventDetails(eventId)
-
-      // Destructure the event array from smart contract
       const [name, ticketPrice, maxTickets, totalTicketsSold, baseURI, organizer] = eventDetails
-
-      // Fetch IPFS metadata
       const metadata = await fetchIPFSMetadata(baseURI)
 
       if (metadata) {
-        // Format dates
         const startDate = metadata.startDateTime ? formatDateTime(metadata.startDateTime) : { date: "TBD", time: "TBD" }
         const endDate = metadata.endDateTime ? formatDateTime(metadata.endDateTime) : null
-
-        // Convert price
         const priceInETH = formatEther(ticketPrice)
         const priceDisplay = priceInETH === "0.0" ? "Free" : `${priceInETH} ETH`
-
-        // Determine status
         const status = getEventStatus(
           metadata.startDateTime,
           metadata.endDateTime,
           Number(totalTicketsSold),
           Number(maxTickets),
         )
-
-        // Parse agenda
         const parsedAgenda = parseAgenda(metadata.agenda)
-
-        // Parse requirements and perks
         const requirements = parseListItems(metadata.requirementsToAttend)
         const perks = parseListItems(metadata.whatsIncluded)
 
-        // Create initial event data with basic organizer info
         const completeEventData: EventData = {
           id: Number(eventId),
           title: metadata.eventName || name,
@@ -278,9 +278,11 @@ export default function EventDetails() {
         }
 
         setEventData(completeEventData)
-        toast.success("Event data loaded successfully!")
 
-        // Fetch organizer details after event data is loaded
+        // Replace or append to cachedEvents
+        const updatedEvents = [...cachedEvents.filter((e) => e.id !== Number(eventId)), completeEventData]
+        localStorage.setItem("events", JSON.stringify(updatedEvents))
+
         const organizerDetails = await getOrganiserDetail(organizer)
         if (organizerDetails) {
           setEventData((prev) =>
@@ -298,8 +300,9 @@ export default function EventDetails() {
               : null,
           )
         }
+
+        toast.success("Event data loaded successfully!")
       } else {
-        // Fallback if IPFS metadata fails
         const fallbackData: EventData = {
           id: Number(eventId),
           title: name,
@@ -318,10 +321,9 @@ export default function EventDetails() {
             verified: false,
           },
         }
-        setEventData(fallbackData)
-        toast.warning("Event loaded with limited data")
 
-        // Still try to fetch organizer details for fallback
+        setEventData(fallbackData)
+
         const organizerDetails = await getOrganiserDetail(organizer)
         if (organizerDetails) {
           setEventData((prev) =>
@@ -333,6 +335,12 @@ export default function EventDetails() {
               : null,
           )
         }
+
+        // Add fallback to cache too
+        const updatedEvents = [...cachedEvents.filter((e) => e.id !== Number(eventId)), fallbackData]
+        localStorage.setItem("events", JSON.stringify(updatedEvents))
+
+        toast.warning("Event loaded with limited data")
       }
     } catch (error) {
       console.error("Error fetching event data:", error)
@@ -568,6 +576,7 @@ export default function EventDetails() {
 
               <div className="space-y-4">
                 <button
+                  onClick={() => setBuyTicketModalOpen(true)}
                   disabled={eventData.status === "Sold Out" || eventData.status === "Ended"}
                   className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-200 ${
                     eventData.status === "Sold Out" || eventData.status === "Ended"
@@ -586,7 +595,10 @@ export default function EventDetails() {
                     <Heart className="w-5 h-5 mr-2" />
                     Save
                   </button>
-                  <button className="flex-1 border border-gray-600 text-white hover:bg-gray-800 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center">
+                  <button
+                    onClick={() => setShareModalOpen(true)}
+                    className="flex-1 border border-gray-600 text-white hover:bg-gray-800 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center"
+                  >
                     <Share2 className="w-5 h-5 mr-2" />
                     Share
                   </button>
@@ -654,6 +666,12 @@ export default function EventDetails() {
           </div>
         </div>
       </div>
+
+      {/* Share Modal */}
+      <ShareModal isOpen={shareModalOpen} onClose={() => setShareModalOpen(false)} eventTitle={eventData.title} />
+
+      {/* Buy Ticket Modal */}
+      <BuyTicketModal isOpen={buyTicketModalOpen} onClose={() => setBuyTicketModalOpen(false)} eventData={eventData} />
     </div>
   )
 }

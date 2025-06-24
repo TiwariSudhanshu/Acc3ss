@@ -56,6 +56,8 @@ export default function ExploreEvents() {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false)
+  const [isNavigatingToProfile, setIsNavigatingToProfile] = useState(false)
 
   // Get profile picture from Redux
   const userProfile = useSelector((state: RootState) => state.user)
@@ -120,98 +122,115 @@ export default function ExploreEvents() {
       return "Selling"
     }
   }
+async function getEvents() {
+  setLoading(true)
 
-  async function getEvents() {
-    setLoading(true)
-    try {
-      const contract = await getContract()
-      const lastIdBn = await contract.nextEventId()
-      const lastId = Number(lastIdBn)
+  try {
+    const contract = await getContract()
+    const lastIdBn = await contract.nextEventId()
+    const lastId = Number(lastIdBn)
 
-      const allEvents: Event[] = []
+    // Load cached events if available
+    const cached = localStorage.getItem("events")
+    const cachedEvents: Event[] = cached ? JSON.parse(cached) : []
 
-      for (let i = 0; i < lastId; i++) {
-        try {
-          const eventData = await contract.getEventDetails(i.toString())
-          const [name, ticketPrice, maxTickets, totalTicketsSold, baseURI, organizer] = eventData
+    setEvents(cachedEvents) // show cached data immediately
 
-          // Fetch IPFS metadata
-          const metadata = await fetchIPFSMetadata(baseURI)
+    const newEvents: Event[] = []
 
-          if (metadata) {
-            // Format date and time
-            const { date, time } = formatDateTime(metadata.startDateTime)
+    for (let i = cachedEvents.length; i < lastId; i++) {
+      try {
+        const eventData = await contract.getEventDetails(i.toString())
+        const [name, ticketPrice, maxTickets, totalTicketsSold, baseURI, organizer] = eventData
 
-            // Convert ticket price from wei to ETH
-            const priceInETH = formatEther(ticketPrice)
+        // Fetch IPFS metadata
+        const metadata = await fetchIPFSMetadata(baseURI)
 
-            // Determine event status
-            const status = getEventStatus(
-              metadata.startDateTime,
-              metadata.endDateTime,
-              Number(totalTicketsSold),
-              Number(maxTickets),
-            )
+        if (metadata) {
+          // Format date and time
+          const { date, time } = formatDateTime(metadata.startDateTime)
 
-            // Construct complete event object
-            const completeEvent: Event = {
-              id: i,
-              title: metadata.eventName || name,
-              image: convertIPFSToHTTP(metadata.bannerImage),
-              date,
-              time,
-              location: metadata.location,
-              price: priceInETH === "0.0" ? "Free" : `${priceInETH} ETH`,
-              attendees: Number(totalTicketsSold),
-              category: metadata.category,
-              status,
-              description: metadata.description,
-              organizer,
-              maxTickets: Number(maxTickets),
-              totalTicketsSold: Number(totalTicketsSold),
-              startDateTime: metadata.startDateTime,
-              endDateTime: metadata.endDateTime,
-              organizedBy: metadata.organizedBy,
-            }
+          // Convert ticket price from wei to ETH
+          const priceInETH = formatEther(ticketPrice)
 
-            allEvents.push(completeEvent)
-          } else {
-            // Fallback if IPFS metadata fails
-            const fallbackEvent: Event = {
-              id: i,
-              title: name,
-              image: "/placeholder.svg?height=200&width=400",
-              date: "TBD",
-              time: "TBD",
-              location: "TBD",
-              price: formatEther(ticketPrice) === "0.0" ? "Free" : `${formatEther(ticketPrice)} ETH`,
-              attendees: Number(totalTicketsSold),
-              category: "General",
-              status: "Coming Soon",
-              organizer,
-              maxTickets: Number(maxTickets),
-              totalTicketsSold: Number(totalTicketsSold),
-            }
-            allEvents.push(fallbackEvent)
+          // Determine event status
+          const status = getEventStatus(
+            metadata.startDateTime,
+            metadata.endDateTime,
+            Number(totalTicketsSold),
+            Number(maxTickets)
+          )
+
+          // Construct complete event object
+          const completeEvent: Event = {
+            id: i,
+            title: metadata.eventName || name,
+            image: convertIPFSToHTTP(metadata.bannerImage),
+            date,
+            time,
+            location: metadata.location,
+            price: priceInETH === "0.0" ? "Free" : `${priceInETH} ETH`,
+            attendees: Number(totalTicketsSold),
+            category: metadata.category,
+            status,
+            description: metadata.description,
+            organizer,
+            maxTickets: Number(maxTickets),
+            totalTicketsSold: Number(totalTicketsSold),
+            startDateTime: metadata.startDateTime,
+            endDateTime: metadata.endDateTime,
+            organizedBy: metadata.organizedBy,
           }
-        } catch (eventError) {
-          console.error(`Error fetching event ${i}:`, eventError)
-          toast.error(`Failed to fetch event ${i}`)
+
+          newEvents.push(completeEvent)
+        } else {
+          // Fallback if IPFS metadata fails
+          const fallbackEvent: Event = {
+            id: i,
+            title: name,
+            image: "/placeholder.svg?height=200&width=400",
+            date: "TBD",
+            time: "TBD",
+            location: "TBD",
+            price: formatEther(ticketPrice) === "0.0" ? "Free" : `${formatEther(ticketPrice)} ETH`,
+            attendees: Number(totalTicketsSold),
+            category: "General",
+            status: "Coming Soon",
+            organizer,
+            maxTickets: Number(maxTickets),
+            totalTicketsSold: Number(totalTicketsSold),
+          }
+
+          newEvents.push(fallbackEvent)
         }
+      } catch (eventError) {
+        console.error(`Error fetching event ${i}:`, eventError)
+        toast.error(`Failed to fetch event ${i}`)
       }
-
-      setEvents(allEvents)
-      if (allEvents.length > 0) {
-        toast.success(`Successfully loaded ${allEvents.length} events from blockchain!`)
-      }
-    } catch (error) {
-      console.error("Error fetching events:", error)
-      toast.error("Failed to fetch events. Please try again later.")
-    } finally {
-      setLoading(false)
     }
-  }
 
+    // Merge cached and new events
+    const mergedEvents = [...cachedEvents, ...newEvents]
+    setEvents(mergedEvents)
+    localStorage.setItem("events", JSON.stringify(mergedEvents))
+
+    if (newEvents.length > 0) {
+      toast.success(`Successfully loaded ${newEvents.length} new events from blockchain!`)
+    }
+  } catch (error) {
+    console.error("Error fetching events:", error)
+    toast.error("Failed to fetch events. Please try again later.")
+  } finally {
+    setLoading(false)
+  }
+}
+
+const refreshEvents = async () => {
+  localStorage.removeItem("events") 
+  setEvents([]) 
+  await getEvents() 
+}
+  
   useEffect(() => {
     getEvents()
   }, [])
@@ -247,11 +266,13 @@ export default function ExploreEvents() {
     setSelectedEvent(null)
   }
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
+    setIsCreatingEvent(true)
     router.push("/create")
   }
 
-  const handleProfileClick = () => {
+  const handleProfileClick = async () => {
+    setIsNavigatingToProfile(true)
     router.push("/profile")
   }
 
@@ -269,23 +290,12 @@ export default function ExploreEvents() {
     "Sports",
   ]
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-white text-xl">Loading events from blockchain...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 py-12">
       <div className="container mx-auto px-4">
         {/* Header with Profile and Create Event */}
         <div className="flex items-center justify-between mb-8">
-          <div className="text-center flex-1">
+          <div className=" flex-1">
             <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
               Explore Events
             </h1>
@@ -296,15 +306,25 @@ export default function ExploreEvents() {
           <div className="flex items-center gap-4">
             <button
               onClick={handleCreateEvent}
-              className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200"
+              disabled={isCreatingEvent}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                isCreatingEvent
+                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+              }`}
             >
               <Plus className="w-5 h-5" />
-              Create Event
+              {isCreatingEvent ? "Creating..." : "Create Event"}
             </button>
 
             <button
               onClick={handleProfileClick}
-              className="w-12 h-12 cursor-pointer rounded-full border-2 border-orange-500 hover:border-orange-400 transition-colors overflow-hidden"
+              disabled={isNavigatingToProfile}
+              className={`w-12 h-12 cursor-pointer rounded-full border-2 transition-colors overflow-hidden ${
+                isNavigatingToProfile
+                  ? "border-gray-600 opacity-50 cursor-not-allowed"
+                  : "border-orange-500 hover:border-orange-400"
+              }`}
             >
               {userProfile?.profilePicture ? (
                 <img
@@ -332,6 +352,7 @@ export default function ExploreEvents() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-12 pr-4 py-3 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors"
+                disabled={loading}
               />
             </div>
           </div>
@@ -342,11 +363,12 @@ export default function ExploreEvents() {
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
+                disabled={loading}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                   category === selectedCategory
                     ? "bg-gradient-to-r from-orange-500 to-red-600 text-white"
                     : "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                }`}
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 {category}
               </button>
@@ -366,85 +388,94 @@ export default function ExploreEvents() {
         )}
 
         {/* Events Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredEvents.map((event) => (
-            <div
-              key={event.id}
-              onClick={() => handleEventClick(event.id)}
-              className="bg-gray-800/50 rounded-2xl overflow-hidden border border-gray-700 hover:border-orange-500/50 transition-all duration-300 group cursor-pointer"
-            >
-              <div className="relative">
-                <img
-                  src={event.image || "/placeholder.svg"}
-                  alt={event.title}
-                  className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute top-4 left-4">
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      event.status === "Live"
-                        ? "bg-green-500 text-white"
-                        : event.status === "Selling"
-                          ? "bg-orange-500 text-white"
-                          : event.status === "Sold Out"
-                            ? "bg-red-500 text-white"
-                            : "bg-gray-600 text-gray-200"
-                    }`}
-                  >
-                    {event.status}
-                  </span>
-                </div>
-                <div className="absolute top-4 right-4">
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-black/50 text-white">
-                    {event.category}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-white mb-3 group-hover:text-orange-400 transition-colors">
-                  {event.title}
-                </h3>
-
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center text-gray-300 text-sm">
-                    <Calendar className="w-4 h-4 mr-2 text-orange-400" />
-                    {event.date} at {event.time}
-                  </div>
-                  <div className="flex items-center text-gray-300 text-sm">
-                    <MapPin className="w-4 h-4 mr-2 text-orange-400" />
-                    {event.location}
-                  </div>
-                  <div className="flex items-center text-gray-300 text-sm">
-                    <Users className="w-4 h-4 mr-2 text-orange-400" />
-                    {event.attendees.toLocaleString()} / {event.maxTickets?.toLocaleString()} tickets
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="text-2xl font-bold text-white">{event.price}</div>
-                  <button
-                    onClick={(e) => handleBuyTicketClick(event, e)}
-                    disabled={event.status === "Sold Out" || event.status === "Ended"}
-                    className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 ${
-                      event.status === "Sold Out" || event.status === "Ended"
-                        ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                        : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
-                    }`}
-                  >
-                    {event.status === "Sold Out"
-                      ? "Sold Out"
-                      : event.status === "Ended"
-                        ? "Ended"
-                        : event.price === "Free"
-                          ? "Register"
-                          : "Buy Ticket"}
-                  </button>
-                </div>
-              </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto mb-4"></div>
+              <p className="text-white text-lg">Loading events onchain...</p>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredEvents.map((event) => (
+              <div
+                key={event.id}
+                onClick={() => handleEventClick(event.id)}
+                className="bg-gray-800/50 rounded-2xl overflow-hidden border border-gray-700 hover:border-orange-500/50 transition-all duration-300 group cursor-pointer"
+              >
+                <div className="relative">
+                  <img
+                    src={event.image || "/placeholder.svg"}
+                    alt={event.title}
+                    className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute top-4 left-4">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        event.status === "Live"
+                          ? "bg-green-500 text-white"
+                          : event.status === "Selling"
+                            ? "bg-orange-500 text-white"
+                            : event.status === "Sold Out"
+                              ? "bg-red-500 text-white"
+                              : "bg-gray-600 text-gray-200"
+                      }`}
+                    >
+                      {event.status}
+                    </span>
+                  </div>
+                  <div className="absolute top-4 right-4">
+                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-black/50 text-white">
+                      {event.category}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  <h3 className="text-xl font-bold text-white mb-3 group-hover:text-orange-400 transition-colors">
+                    {event.title}
+                  </h3>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center text-gray-300 text-sm">
+                      <Calendar className="w-4 h-4 mr-2 text-orange-400" />
+                      {event.date} at {event.time}
+                    </div>
+                    <div className="flex items-center text-gray-300 text-sm">
+                      <MapPin className="w-4 h-4 mr-2 text-orange-400" />
+                      {event.location}
+                    </div>
+                    <div className="flex items-center text-gray-300 text-sm">
+                      <Users className="w-4 h-4 mr-2 text-orange-400" />
+                      {event.attendees.toLocaleString()} / {event.maxTickets?.toLocaleString()} tickets
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="text-2xl font-bold text-white">{event.price}</div>
+                    <button
+                      onClick={(e) => handleBuyTicketClick(event, e)}
+                      disabled={event.status === "Sold Out" || event.status === "Ended"}
+                      className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 ${
+                        event.status === "Sold Out" || event.status === "Ended"
+                          ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                          : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+                      }`}
+                    >
+                      {event.status === "Sold Out"
+                        ? "Sold Out"
+                        : event.status === "Ended"
+                          ? "Ended"
+                          : event.price === "Free"
+                            ? "Register"
+                            : "Buy Ticket"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* No Results Message */}
         {filteredEvents.length === 0 && !loading && (
@@ -481,18 +512,18 @@ export default function ExploreEvents() {
         {filteredEvents.length > 0 && !searchTerm && selectedCategory === "All" && (
           <div className="text-center mt-12">
             <button
-              onClick={getEvents}
+              onClick={refreshEvents}
               disabled={loading}
               className="border border-gray-600 text-white hover:bg-gray-800 px-8 py-3 text-lg bg-transparent rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
             >
-              {loading ? "Loading..." : "Refresh Events"}
+              {loading ? "Refreshing..." : "Refresh Events Onchain"}
             </button>
           </div>
         )}
       </div>
 
       {/* Buy Ticket Modal */}
-      <BuyTicketModal event={selectedEvent} isOpen={isModalOpen} onClose={handleCloseModal} />
+      {/* <BuyTicketModal event={selectedEvent} isOpen={isModalOpen} onClose={handleCloseModal} /> */}
     </div>
   )
 }
