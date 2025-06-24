@@ -1,26 +1,62 @@
-"use client"
-import { X, CreditCard, Wallet, Shield } from "lucide-react"
-import Ticket from "./ticket"
+"use client";
+import { X, CreditCard, Wallet, Shield } from "lucide-react";
+import Ticket from "./ticket";
+import { useState } from "react";
+import { toast } from "sonner";
+import { getContract } from "@/contract/contract";
+import { BigNumberish, parseEther } from "ethers";
 
 interface BuyTicketModalProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
   eventData: {
-    id: number
-    title: string
-    banner: string
-    date: string
-    time: string
-    location: string
-    price: string
+    id: number;
+    title: string;
+    banner: string;
+    date: string;
+    time: string;
+    location: string;
+    price: string;
     organizer: {
-      name: string
-    }
-  }
+      name: string;
+    };
+  };
 }
 
-export default function BuyTicketModal({ isOpen, onClose, eventData }: BuyTicketModalProps) {
-  if (!isOpen) return null
+export default function BuyTicketModal({
+  isOpen,
+  onClose,
+  eventData,
+}: BuyTicketModalProps) {
+  if (!isOpen) return null;
+
+  const [loading, setLoading] = useState(false);
+
+  const handlePurchase = async () => {
+    setLoading(true);
+    try {
+      const contract = await getContract();
+
+      let value: BigNumberish = 0;
+      if (eventData.price !== "Free") {
+        value = parseEther(eventData.price.toString());
+      }
+
+      const tx = await contract.mintTicket(eventData.id, { value });
+      const receipt = await tx.wait();
+
+      if (tx) {
+        toast.success("Ticket purchased successfully!");
+        console.log("Transaction successful:", receipt);
+        onClose();
+      }
+    } catch (error) {
+      console.error("Purchase failed:", error);
+      toast.error("Purchase failed. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -39,8 +75,12 @@ export default function BuyTicketModal({ isOpen, onClose, eventData }: BuyTicket
             <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <CreditCard className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-3xl font-bold text-white mb-2">Purchase Ticket</h2>
-            <p className="text-gray-300">Review your ticket details before purchase</p>
+            <h2 className="text-3xl font-bold text-white mb-2">
+              Purchase Ticket
+            </h2>
+            <p className="text-gray-300">
+              Review your ticket details before purchase
+            </p>
           </div>
 
           {/* Ticket Preview */}
@@ -62,12 +102,16 @@ export default function BuyTicketModal({ isOpen, onClose, eventData }: BuyTicket
 
           {/* Purchase Details */}
           <div className="bg-gray-700/30 rounded-2xl p-6 mb-8">
-            <h3 className="text-xl font-bold text-white mb-6">Purchase Details</h3>
+            <h3 className="text-xl font-bold text-white mb-6">
+              Purchase Details
+            </h3>
 
             <div className="grid gap-6">
               {/* Price Summary */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">Price Summary</label>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Price Summary
+                </label>
                 <div className="space-y-2">
                   <div className="flex justify-between text-gray-300">
                     <span>Ticket Price:</span>
@@ -96,7 +140,9 @@ export default function BuyTicketModal({ isOpen, onClose, eventData }: BuyTicket
               </div>
               <div>
                 <p className="text-white font-medium">MetaMask Wallet</p>
-                <p className="text-gray-400 text-sm">Connect your wallet to purchase</p>
+                <p className="text-gray-400 text-sm">
+                  Connect your wallet to purchase
+                </p>
               </div>
             </div>
           </div>
@@ -109,9 +155,17 @@ export default function BuyTicketModal({ isOpen, onClose, eventData }: BuyTicket
             >
               Cancel
             </button>
-            <button className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-4 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center space-x-2">
+            <button
+              onClick={handlePurchase}
+              disabled={loading}
+              className={`flex-1 py-4 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center space-x-2 ${
+                loading
+                  ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                  : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+              }`}
+            >
               <CreditCard className="w-5 h-5" />
-              <span>Purchase Ticket</span>
+              <span>{loading ? "Purchasing..." : "Purchase Ticket"}</span>
             </button>
           </div>
 
@@ -120,10 +174,13 @@ export default function BuyTicketModal({ isOpen, onClose, eventData }: BuyTicket
             <div className="flex items-start space-x-3">
               <Shield className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-blue-300 font-medium text-sm">Secure Transaction</p>
+                <p className="text-blue-300 font-medium text-sm">
+                  Secure Transaction
+                </p>
                 <p className="text-blue-200/80 text-xs mt-1">
-                  Your purchase is secured by blockchain technology. Ticket ownership will be transferred to your wallet
-                  upon successful payment.
+                  Your purchase is secured by blockchain technology. Ticket
+                  ownership will be transferred to your wallet upon successful
+                  payment.
                 </p>
               </div>
             </div>
@@ -131,5 +188,5 @@ export default function BuyTicketModal({ isOpen, onClose, eventData }: BuyTicket
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -5,7 +5,6 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
-import BuyTicketModal from "./buy-ticket-modal"
 import { getContract } from "@/contract/contract"
 import { toast } from "sonner"
 import { formatEther } from "ethers"
@@ -51,8 +50,6 @@ interface IPFSMetadata {
 export default function ExploreEvents() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -64,10 +61,10 @@ export default function ExploreEvents() {
 
   // Convert IPFS URI to HTTP URL
   const convertIPFSToHTTP = (ipfsUri: string): string => {
-    if (ipfsUri.startsWith("ipfs://")) {
+    if (ipfsUri?.startsWith("ipfs://")) {
       return ipfsUri.replace("ipfs://", "https://lavender-tremendous-deer-798.mypinata.cloud/ipfs/")
     }
-    return ipfsUri
+    return ipfsUri || "/placeholder.svg"
   }
 
   // Fetch IPFS metadata
@@ -107,130 +104,135 @@ export default function ExploreEvents() {
   }
 
   // Determine event status
-  const getEventStatus = (startDateTime: string, endDateTime: string, totalSold: number, maxTickets: number) => {
+  const getEventStatus = (startDateTime?: string, endDateTime?: string, totalSold?: number, maxTickets?: number) => {
+    if (!startDateTime) return "Coming Soon"
+
     const now = new Date()
     const start = new Date(startDateTime)
-    const end = new Date(endDateTime)
+    const end = endDateTime ? new Date(endDateTime) : null
 
-    if (now >= start && now <= end) {
+    if (now >= start && (!end || now <= end)) {
       return "Live"
-    } else if (now > end) {
+    } else if (end && now > end) {
       return "Ended"
-    } else if (totalSold >= maxTickets) {
+    } else if (maxTickets && totalSold && totalSold >= maxTickets) {
       return "Sold Out"
     } else {
       return "Selling"
     }
   }
-async function getEvents() {
-  setLoading(true)
 
-  try {
-    const contract = await getContract()
-    const lastIdBn = await contract.nextEventId()
-    const lastId = Number(lastIdBn)
+  async function getEvents() {
+    setLoading(true)
 
-    // Load cached events if available
-    const cached = localStorage.getItem("events")
-    const cachedEvents: Event[] = cached ? JSON.parse(cached) : []
+    try {
+      const contract = await getContract()
+      const lastIdBn = await contract.nextEventId()
+      const lastId = Number(lastIdBn)
 
-    setEvents(cachedEvents) // show cached data immediately
+      // Load cached events if available
+      const cached = localStorage.getItem("events")
+      const cachedEvents: Event[] = cached ? JSON.parse(cached) : []
 
-    const newEvents: Event[] = []
+      setEvents(cachedEvents) // show cached data immediately
 
-    for (let i = cachedEvents.length; i < lastId; i++) {
-      try {
-        const eventData = await contract.getEventDetails(i.toString())
-        const [name, ticketPrice, maxTickets, totalTicketsSold, baseURI, organizer] = eventData
+      const newEvents: Event[] = []
 
-        // Fetch IPFS metadata
-        const metadata = await fetchIPFSMetadata(baseURI)
+      for (let i = cachedEvents.length; i < lastId; i++) {
+        try {
+          const eventData = await contract.getEventDetails(i.toString())
+          const [name, ticketPrice, maxTickets, totalTicketsSold, baseURI, organizer] = eventData
 
-        if (metadata) {
-          // Format date and time
-          const { date, time } = formatDateTime(metadata.startDateTime)
+          // Fetch IPFS metadata
+          const metadata = await fetchIPFSMetadata(baseURI)
 
-          // Convert ticket price from wei to ETH
-          const priceInETH = formatEther(ticketPrice)
+          if (metadata) {
+            // Format date and time
+            const { date, time } = formatDateTime(metadata.startDateTime)
 
-          // Determine event status
-          const status = getEventStatus(
-            metadata.startDateTime,
-            metadata.endDateTime,
-            Number(totalTicketsSold),
-            Number(maxTickets)
-          )
+            // Convert ticket price from wei to ETH
+            const priceInETH = formatEther(ticketPrice)
 
-          // Construct complete event object
-          const completeEvent: Event = {
-            id: i,
-            title: metadata.eventName || name,
-            image: convertIPFSToHTTP(metadata.bannerImage),
-            date,
-            time,
-            location: metadata.location,
-            price: priceInETH === "0.0" ? "Free" : `${priceInETH} ETH`,
-            attendees: Number(totalTicketsSold),
-            category: metadata.category,
-            status,
-            description: metadata.description,
-            organizer,
-            maxTickets: Number(maxTickets),
-            totalTicketsSold: Number(totalTicketsSold),
-            startDateTime: metadata.startDateTime,
-            endDateTime: metadata.endDateTime,
-            organizedBy: metadata.organizedBy,
+            // Determine event status
+            const status = getEventStatus(
+              metadata.startDateTime,
+              metadata.endDateTime,
+              Number(totalTicketsSold),
+              Number(maxTickets),
+            )
+
+            // Construct complete event object with proper defaults
+            const completeEvent: Event = {
+              id: i,
+              title: metadata.eventName || name || "Untitled Event",
+              image: convertIPFSToHTTP(metadata.bannerImage),
+              date,
+              time,
+              location: metadata.location || "TBD",
+              price: priceInETH === "0.0" ? "Free" : `${priceInETH} ETH`,
+              attendees: Number(totalTicketsSold) || 0,
+              category: metadata.category || "General",
+              status,
+              description: metadata.description,
+              organizer,
+              maxTickets: Number(maxTickets) || 0,
+              totalTicketsSold: Number(totalTicketsSold) || 0,
+              startDateTime: metadata.startDateTime,
+              endDateTime: metadata.endDateTime,
+              organizedBy: metadata.organizedBy,
+            }
+
+            newEvents.push(completeEvent)
+          } else {
+            // Fallback if IPFS metadata fails
+            const fallbackEvent: Event = {
+              id: i,
+              title: name || "Untitled Event",
+              image: "/placeholder.svg?height=200&width=400",
+              date: "TBD",
+              time: "TBD",
+              location: "TBD",
+              price: formatEther(ticketPrice) === "0.0" ? "Free" : `${formatEther(ticketPrice)} ETH`,
+              attendees: Number(totalTicketsSold) || 0,
+              category: "General",
+              status: "Coming Soon",
+              organizer,
+              maxTickets: Number(maxTickets) || 0,
+              totalTicketsSold: Number(totalTicketsSold) || 0,
+            }
+
+            newEvents.push(fallbackEvent)
           }
-
-          newEvents.push(completeEvent)
-        } else {
-          // Fallback if IPFS metadata fails
-          const fallbackEvent: Event = {
-            id: i,
-            title: name,
-            image: "/placeholder.svg?height=200&width=400",
-            date: "TBD",
-            time: "TBD",
-            location: "TBD",
-            price: formatEther(ticketPrice) === "0.0" ? "Free" : `${formatEther(ticketPrice)} ETH`,
-            attendees: Number(totalTicketsSold),
-            category: "General",
-            status: "Coming Soon",
-            organizer,
-            maxTickets: Number(maxTickets),
-            totalTicketsSold: Number(totalTicketsSold),
-          }
-
-          newEvents.push(fallbackEvent)
+        } catch (eventError) {
+          console.error(`Error fetching event ${i}:`, eventError)
+          // Continue with next event instead of showing toast for each error
         }
-      } catch (eventError) {
-        console.error(`Error fetching event ${i}:`, eventError)
-        toast.error(`Failed to fetch event ${i}`)
       }
-    }
 
-    // Merge cached and new events
-    const mergedEvents = [...cachedEvents, ...newEvents]
-    setEvents(mergedEvents)
-    localStorage.setItem("events", JSON.stringify(mergedEvents))
+      // Merge cached and new events
+      const mergedEvents = [...cachedEvents, ...newEvents]
+      setEvents(mergedEvents)
+      localStorage.setItem("events", JSON.stringify(mergedEvents))
 
-    if (newEvents.length > 0) {
-      toast.success(`Successfully loaded ${newEvents.length} new events from blockchain!`)
+      if (newEvents.length > 0) {
+        toast.success(`Successfully loaded ${newEvents.length} new events from blockchain!`)
+      } else if (mergedEvents.length === 0) {
+        toast.info("No events found on the blockchain yet.")
+      }
+    } catch (error) {
+      console.error("Error fetching events:", error)
+      toast.error("Failed to fetch events. Please try again later.")
+    } finally {
+      setLoading(false)
     }
-  } catch (error) {
-    console.error("Error fetching events:", error)
-    toast.error("Failed to fetch events. Please try again later.")
-  } finally {
-    setLoading(false)
   }
-}
 
-const refreshEvents = async () => {
-  localStorage.removeItem("events") 
-  setEvents([]) 
-  await getEvents() 
-}
-  
+  const refreshEvents = async () => {
+    localStorage.removeItem("events")
+    setEvents([])
+    await getEvents()
+  }
+
   useEffect(() => {
     getEvents()
   }, [])
@@ -254,16 +256,10 @@ const refreshEvents = async () => {
     router.push(`/event/${eventId}`)
   }
 
-  // Handle buy ticket button click - open modal
-  const handleBuyTicketClick = (event: Event, e: React.MouseEvent) => {
+  // Handle get ticket button click - redirect to event detail page
+  const handleGetTicketClick = (eventId: number, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent event card click
-    setSelectedEvent(event)
-    setIsModalOpen(true)
-  }
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setSelectedEvent(null)
+    router.push(`/event/${eventId}`)
   }
 
   const handleCreateEvent = async () => {
@@ -447,14 +443,14 @@ const refreshEvents = async () => {
                     </div>
                     <div className="flex items-center text-gray-300 text-sm">
                       <Users className="w-4 h-4 mr-2 text-orange-400" />
-                      {event.attendees.toLocaleString()} / {event.maxTickets?.toLocaleString()} tickets
+                      {(event.attendees || 0).toLocaleString()} / {(event.maxTickets || 0).toLocaleString()} tickets
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div className="text-2xl font-bold text-white">{event.price}</div>
                     <button
-                      onClick={(e) => handleBuyTicketClick(event, e)}
+                      onClick={(e) => handleGetTicketClick(event.id, e)}
                       disabled={event.status === "Sold Out" || event.status === "Ended"}
                       className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 ${
                         event.status === "Sold Out" || event.status === "Ended"
@@ -462,13 +458,7 @@ const refreshEvents = async () => {
                           : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
                       }`}
                     >
-                      {event.status === "Sold Out"
-                        ? "Sold Out"
-                        : event.status === "Ended"
-                          ? "Ended"
-                          : event.price === "Free"
-                            ? "Register"
-                            : "Buy Ticket"}
+                      {event.status === "Sold Out" ? "Sold Out" : event.status === "Ended" ? "Ended" : "Get Ticket"}
                     </button>
                   </div>
                 </div>
@@ -521,9 +511,6 @@ const refreshEvents = async () => {
           </div>
         )}
       </div>
-
-      {/* Buy Ticket Modal */}
-      {/* <BuyTicketModal event={selectedEvent} isOpen={isModalOpen} onClose={handleCloseModal} /> */}
     </div>
   )
 }
