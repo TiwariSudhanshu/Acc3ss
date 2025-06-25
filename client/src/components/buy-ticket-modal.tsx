@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { getContract } from "@/contract/contract";
 import { BigNumberish, parseEther } from "ethers";
+import { useAccount } from "wagmi";
 
 interface BuyTicketModalProps {
   isOpen: boolean;
@@ -32,6 +33,32 @@ export default function BuyTicketModal({
 
   const [loading, setLoading] = useState(false);
 
+  const {address} = useAccount();
+
+  const addTicketToUser = async () => {
+    try {
+      const contract = await getContract();
+      const lastTicketId = await contract.nextTokenId();
+      const ticketId = lastTicketId.toNumber() - 1; 
+      await fetch("/api/addOwnedTicket", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ticketId,
+          walletAddress: address,
+        }),
+      });
+      toast.success("Ticket added to your account successfully!");
+      console.log("Ticket added to user successfully");
+    }
+    catch (error) {
+      console.error("Error adding ticket to user:", error);
+      toast.error("Failed to add ticket to user. Please try again later.");
+    }
+  }
+
   const handlePurchase = async () => {
     setLoading(true);
     try {
@@ -46,6 +73,7 @@ export default function BuyTicketModal({
       const receipt = await tx.wait();
 
       if (tx) {
+        await addTicketToUser();
         toast.success("Ticket purchased successfully!");
         console.log("Transaction successful:", receipt);
         onClose();

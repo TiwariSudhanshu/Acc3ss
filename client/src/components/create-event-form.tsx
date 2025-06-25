@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Upload, Calendar, Tag, Settings, Users, Plus, X, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { getContract } from "@/contract/contract"
+import { useAccount } from "wagmi"
 
 interface Speaker {
   id: string
@@ -298,6 +299,36 @@ export default function CreateEventForm() {
     }
   }
 
+  const {address} =  useAccount();
+ const addEventId = async ( ) => {
+  try {
+     const contract = await getContract()
+      const lastIdBn = await contract.nextEventId();
+      const eventId = lastIdBn.toNumber() - 1; 
+    const res = await fetch("/api/addEventToDb", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        eventId,
+        walletAddress: address,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      console.log("Event added to database:", data);
+    } else {
+      console.error("Failed to add:", data);
+    }
+  } catch (error) {
+    console.error("Error adding event to database:", error);
+  }
+};
+
+
   const handleOperations = async () => {
     if (!validateForm()) {
       return
@@ -317,9 +348,8 @@ export default function CreateEventForm() {
       // Create event on blockchain
       toast.loading("Creating event on blockchain...", { id: loadingToast })
       await createEvent(metadataUrl)
-
+      await addEventId();
       toast.success("Event created successfully!", { id: loadingToast })
-      // Reset form state
       setEventName("")
       setCategory("")
       setDescription("")

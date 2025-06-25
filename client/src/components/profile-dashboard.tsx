@@ -1,21 +1,26 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
-import { Calendar, MapPin, Users, Ticket, Plus, Settings, Trophy, Star } from "lucide-react"
+import { Calendar, MapPin, Users, Ticket, Plus, Settings, Trophy, Star, X } from "lucide-react"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import SettingsModal from "./settings-modal"
+import { getContract } from "@/contract/contract"
+import { toast } from "sonner"
+import TicketComponent from "./ticket"
 
 interface Event {
   id: number
   title: string
   image: string
   date: string
+  time: string
   location: string
   price: string
   attendees: number
   category: string
   status: string
+  organizer: string
 }
 
 interface OwnedTicket {
@@ -30,13 +35,73 @@ interface OwnedTicket {
   price: string
   status: "Active" | "Used" | "Expired"
 }
+interface Speaker {
+  name: string
+  role: string
+  avatar?: string
+}
+
+interface AgendaItem {
+  time: string
+  title: string
+  speaker?: string
+}
+
+interface OrganizerDetails {
+  name: string
+  email?: string
+  profilePicture?: string
+  verified: boolean
+  address: string
+}
+interface IPFSMetadata {
+  eventName?: string
+  description?: string
+  category?: string
+  bannerImage?: string
+  location?: string
+  startDateTime?: string
+  endDateTime?: string
+  speakers?: Speaker[]
+  organizedBy?: "solo" | "community"
+  communityName?: string
+  requirementsToAttend?: string
+  whatsIncluded?: string
+  agenda?: string | AgendaItem[]
+  organizerName?: string
+}
 
 export default function ProfileDashboard() {
   const [activeTab, setActiveTab] = useState<"attended" | "created" | "tickets">("attended")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [eventsCreated, setEventsCreated] = useState<Event[]>([])
+  const [ticketsOwned, setTicketsOwned] = useState<Event[]>([])
+  const [isLoadingCreated, setIsLoadingCreated] = useState(false)
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false)
+  const [selectedTicket, setSelectedTicket] = useState<Event | null>(null)
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false)
 
   const userReal = useSelector((state: RootState) => state.user)
-
+  const convertIPFSToHTTP = (ipfsUri: string): string => {
+    if (ipfsUri?.startsWith("ipfs://")) {
+      return ipfsUri.replace("ipfs://", "https://lavender-tremendous-deer-798.mypinata.cloud/ipfs/")
+    }
+    return ipfsUri || "/placeholder.svg"
+  }
+  const fetchIPFSMetadata = async (baseURI: string): Promise<IPFSMetadata | null> => {
+    try {
+      const httpUrl = convertIPFSToHTTP(baseURI)
+      const response = await fetch(httpUrl)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch metadata: ${response.statusText}`)
+      }
+      const metadata: IPFSMetadata = await response.json()
+      return metadata
+    } catch (error) {
+      console.error("Error fetching IPFS metadata:", error)
+      return null
+    }
+  }
   // Mock user data
   const user = {
     name: userReal.name,
@@ -48,6 +113,107 @@ export default function ProfileDashboard() {
     totalTickets: 8,
     eventsCreated: 3,
   }
+  const formatDateTime = (isoString: string) => {
+    try {
+      const date = new Date(isoString)
+      const dateStr = date.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+      const timeStr = date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+      return { date: dateStr, time: timeStr }
+    } catch (error) {
+      return { date: "TBD", time: "TBD" }
+    }
+  }
+  const getCreatedEvents = async () => {
+    try {
+      setIsLoadingCreated(true)
+      setEventsCreated([]) // Clear existing data to prevent duplicates
+      const contract = await getContract()
+      const events: Event[] = []
+
+      for (const eventId of userReal.eventsCreated) {
+        console.log("Fetching event details for ID:", eventId)
+        const event = await contract.getEventDetails(eventId.toString())
+        const metadata = await fetchIPFSMetadata(event.baseURI)
+        const dateTime = metadata?.startDateTime ? formatDateTime(metadata.startDateTime) : { date: "TBD", time: "TBD" }
+
+        events.push({
+          id: Number.parseInt(eventId),
+          title: metadata?.eventName || event.name,
+          image: metadata?.bannerImage ? convertIPFSToHTTP(metadata.bannerImage) : "/placeholder.svg",
+          date: dateTime.date,
+          time: dateTime.time,
+          location: metadata?.location || "TBD",
+          price: event.ticketPrice.toString() === "0" ? "Free" : `${(Number(event.ticketPrice) / 1e18).toFixed(3)} ETH`,
+          attendees: Number(event.totalTicketsSold),
+          category: metadata?.category || "General",
+          status: Number(event.totalTicketsSold) >= Number(event.maxTickets) ? "Sold Out" : "Selling",
+          organizer: metadata?.organizerName || metadata?.communityName || "Event Organizer",
+        })
+      }
+
+      setEventsCreated(events)
+    } catch (error) {
+      console.error("Error fetching created events:", error)
+      toast.error("Failed to load created events. Please try again later.")
+    } finally {
+      setIsLoadingCreated(false)
+    }
+  }
+
+  const getOwnedTickets = async () => {
+    try {
+      setIsLoadingTickets(true)
+      setTicketsOwned([]) // Clear existing data to prevent duplicates
+      const contract = await getContract()
+      const tickets: Event[] = []
+
+      for (const ticket of userReal.ticketsOwned) {
+        const eventId = await contract.tokenToEvent(ticket.toString())
+        const event = await contract.getEventDetails(eventId.toString())
+        const metadata = await fetchIPFSMetadata(event.baseURI)
+        const dateTime = metadata?.startDateTime ? formatDateTime(metadata.startDateTime) : { date: "TBD", time: "TBD" }
+
+        tickets.push({
+          id: Number.parseInt(eventId),
+          title: metadata?.eventName || event.name,
+          image: metadata?.bannerImage ? convertIPFSToHTTP(metadata.bannerImage) : "/placeholder.svg",
+          date: dateTime.date,
+          time: dateTime.time,
+          location: metadata?.location || "TBD",
+          price: event.ticketPrice.toString() === "0" ? "Free" : `${(Number(event.ticketPrice) / 1e18).toFixed(3)} ETH`,
+          attendees: Number(event.totalTicketsSold),
+          category: metadata?.category || "General",
+          status: "Active", // Assuming owned tickets are active
+          organizer: metadata?.organizerName || metadata?.communityName || "Event Organizer",
+        })
+      }
+
+      setTicketsOwned(tickets)
+    } catch (error) {
+      console.error("Error fetching owned tickets:", error)
+      toast.error("Failed to load owned tickets. Please try again later.")
+    } finally {
+      setIsLoadingTickets(false)
+    }
+  }
+
+  const openTicketModal = (ticket: Event) => {
+    setSelectedTicket(ticket)
+    setIsTicketModalOpen(true)
+  }
+
+  const closeTicketModal = () => {
+    setIsTicketModalOpen(false)
+    setSelectedTicket(null)
+  }
 
   // Mock events attended
   const eventsAttended: Event[] = [
@@ -56,99 +222,39 @@ export default function ProfileDashboard() {
       title: "Web3 Summit 2024",
       image: "https://i.pinimg.com/736x/25/f6/66/25f666ddb218a20d09534fe0d01494af.jpg",
       date: "Dec 15, 2024",
+      time: "9:00 AM",
       location: "San Francisco, CA",
       price: "0.05 ETH",
       attendees: 1250,
       category: "Conference",
       status: "Completed",
+      organizer: "Web3 Foundation",
     },
     {
       id: 2,
       title: "NFT Art Gallery Opening",
       image: "https://i.pinimg.com/736x/fc/2d/e9/fc2de95d90362735b9c3ffd8620b6ae7.jpg",
       date: "Nov 20, 2024",
+      time: "6:00 PM",
       location: "New York, NY",
       price: "0.02 ETH",
       attendees: 300,
       category: "Art",
       status: "Completed",
+      organizer: "Digital Art Collective",
     },
     {
       id: 3,
       title: "Blockchain Developer Meetup",
       image: "https://i.pinimg.com/736x/70/c8/3c/70c83c57dbf1514e7dd8b363a63327fe.jpg",
       date: "Oct 22, 2024",
+      time: "7:00 PM",
       location: "Austin, TX",
       price: "Free",
       attendees: 150,
       category: "Meetup",
       status: "Completed",
-    },
-  ]
-
-  // Mock events created
-  const eventsCreated: Event[] = [
-    {
-      id: 4,
-      title: "DeFi Workshop Series",
-      image: "https://i.pinimg.com/736x/61/e4/26/61e4267351408e43a921b454f3e4f72e.jpg",
-      date: "Jan 15, 2025",
-      location: "Miami, FL",
-      price: "0.03 ETH",
-      attendees: 85,
-      category: "Workshop",
-      status: "Live",
-    },
-    {
-      id: 5,
-      title: "Crypto Trading Bootcamp",
-      image: "https://i.pinimg.com/736x/ef/ba/33/efba333ded8fc05578cf0ddda18f0b5e.jpg",
-      date: "Feb 10, 2025",
-      location: "Online",
-      price: "0.08 ETH",
-      attendees: 200,
-      category: "Education",
-      status: "Selling",
-    },
-  ]
-
-  // Mock owned tickets
-  const ownedTickets: OwnedTicket[] = [
-    {
-      id: 1,
-      eventId: 1,
-      eventTitle: "Web3 Summit 2024",
-      eventImage: "https://i.pinimg.com/736x/25/f6/66/25f666ddb218a20d09534fe0d01494af.jpg",
-      eventDate: "Dec 15, 2024",
-      eventLocation: "San Francisco, CA",
-      ticketType: "General Admission",
-      purchaseDate: "Nov 10, 2024",
-      price: "0.05 ETH",
-      status: "Used",
-    },
-    {
-      id: 2,
-      eventId: 2,
-      eventTitle: "NFT Art Gallery Opening",
-      eventImage: "https://i.pinimg.com/736x/fc/2d/e9/fc2de95d90362735b9c3ffd8620b6ae7.jpg",
-      eventDate: "Dec 20, 2024",
-      eventLocation: "New York, NY",
-      ticketType: "VIP Access",
-      purchaseDate: "Nov 15, 2024",
-      price: "0.02 ETH",
-      status: "Active",
-    },
-    {
-      id: 3,
-      eventId: 6,
-      eventTitle: "Web3 Gaming Tournament",
-      eventImage: "https://i.pinimg.com/736x/92/2b/a7/922ba77ac539f1f89550b5e61507f19c.jpg",
-      eventDate: "Jan 18, 2025",
-      eventLocation: "Las Vegas, NV",
-      ticketType: "Player Pass",
-      purchaseDate: "Dec 1, 2024",
-      price: "0.03 ETH",
-      status: "Active",
+      organizer: "Austin Blockchain Group",
     },
   ]
 
@@ -171,6 +277,10 @@ export default function ProfileDashboard() {
     }
   }
 
+  useEffect(() => {
+    getCreatedEvents()
+    getOwnedTickets()
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900">
@@ -338,54 +448,73 @@ export default function ProfileDashboard() {
                       Create New Event
                     </button>
                   </div>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {eventsCreated.map((event) => (
-                      <div
-                        key={event.id}
-                        className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 hover:border-orange-500/50 transition-all duration-300"
-                      >
-                        <div className="relative">
-                          <img
-                            src={event.image || "/placeholder.svg"}
-                            alt={event.title}
-                            className="w-full h-32 object-cover"
-                          />
-                          <div className="absolute top-3 right-3">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}
-                            >
-                              {event.status}
-                            </span>
+
+                  {isLoadingCreated ? (
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {[...Array(3)].map((_, i) => (
+                        <div
+                          key={i}
+                          className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 animate-pulse"
+                        >
+                          <div className="w-full h-32 bg-gray-700"></div>
+                          <div className="p-4 space-y-3">
+                            <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+                            <div className="h-3 bg-gray-700 rounded w-1/2"></div>
+                            <div className="h-3 bg-gray-700 rounded w-2/3"></div>
                           </div>
                         </div>
-                        <div className="p-4">
-                          <h3 className="font-semibold text-white mb-2">{event.title}</h3>
-                          <div className="space-y-1 text-sm text-gray-300 mb-3">
-                            <div className="flex items-center">
-                              <Calendar className="w-4 h-4 mr-2 text-orange-400" />
-                              {event.date}
-                            </div>
-                            <div className="flex items-center">
-                              <MapPin className="w-4 h-4 mr-2 text-orange-400" />
-                              {event.location}
-                            </div>
-                            <div className="flex items-center">
-                              <Users className="w-4 h-4 mr-2 text-orange-400" />
-                              {event.attendees} registered
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {eventsCreated.map((event) => (
+                        <div
+                          key={event.id}
+                          className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 hover:border-orange-500/50 transition-all duration-300"
+                        >
+                          <div className="relative">
+                            <img
+                              src={event.image || "/placeholder.svg"}
+                              alt={event.title}
+                              className="w-full h-32 object-cover"
+                            />
+                            <div className="absolute top-3 right-3">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}
+                              >
+                                {event.status}
+                              </span>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-1 px-3 rounded text-sm transition-colors">
-                              Edit
-                            </button>
-                            <button className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded text-sm transition-colors">
-                              View
-                            </button>
+                          <div className="p-4">
+                            <h3 className="font-semibold text-white mb-2">{event.title}</h3>
+                            <div className="space-y-1 text-sm text-gray-300 mb-3">
+                              <div className="flex items-center">
+                                <Calendar className="w-4 h-4 mr-2 text-orange-400" />
+                                {event.date}
+                              </div>
+                              <div className="flex items-center">
+                                <MapPin className="w-4 h-4 mr-2 text-orange-400" />
+                                {event.location}
+                              </div>
+                              <div className="flex items-center">
+                                <Users className="w-4 h-4 mr-2 text-orange-400" />
+                                {event.attendees} registered
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-1 px-3 rounded text-sm transition-colors">
+                                Edit
+                              </button>
+                              <button className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded text-sm transition-colors">
+                                View
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -395,69 +524,81 @@ export default function ProfileDashboard() {
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold text-white flex items-center">
                       <Ticket className="w-5 h-5 mr-2 text-orange-400" />
-                      Owned Tickets ({ownedTickets.length})
+                      Owned Tickets ({ticketsOwned.length})
                     </h2>
                   </div>
-                  <div className="space-y-4">
-                    {ownedTickets.map((ticket) => (
-                      <div
-                        key={ticket.id}
-                        className="bg-gray-800/50 rounded-xl border border-gray-700 hover:border-orange-500/50 transition-all duration-300 p-4"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <img
-                            src={ticket.eventImage || "/placeholder.svg"}
-                            alt={ticket.eventTitle}
-                            className="w-16 h-16 rounded-lg object-cover"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <h3 className="font-semibold text-white">{ticket.eventTitle}</h3>
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}
-                              >
-                                {ticket.status}
-                              </span>
+
+                  {isLoadingTickets ? (
+                    <div className="space-y-4">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="bg-gray-800/50 rounded-xl border border-gray-700 p-4 animate-pulse">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-16 h-16 bg-gray-700 rounded-lg"></div>
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 bg-gray-700 rounded w-1/2"></div>
+                              <div className="h-3 bg-gray-700 rounded w-1/3"></div>
+                              <div className="h-3 bg-gray-700 rounded w-1/4"></div>
                             </div>
-                            <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-300">
-                              <div>
-                                <div className="flex items-center mb-1">
-                                  <Calendar className="w-4 h-4 mr-2 text-orange-400" />
-                                  {ticket.eventDate}
+                            <div className="w-24 h-8 bg-gray-700 rounded"></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-4">
+                      {ticketsOwned.map((ticket) => (
+                        <div
+                          key={ticket.id}
+                          className="bg-gray-800/50 rounded-xl border border-gray-700 hover:border-orange-500/50 transition-all duration-300 p-4"
+                        >
+                          <div className="flex items-start space-x-4">
+                            <img
+                              src={ticket.image || "/placeholder.svg"}
+                              alt={ticket.title}
+                              className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between mb-2">
+                                <h3 className="font-semibold text-white text-lg truncate pr-2">{ticket.title}</h3>
+                                <span
+                                  className={`px-2 py-1 rounded-full text-xs font-medium border flex-shrink-0 ${getStatusColor(ticket.status)}`}
+                                >
+                                  {ticket.status}
+                                </span>
+                              </div>
+                              <div className="space-y-2 text-sm text-gray-300">
+                                <div className="flex items-center">
+                                  <Calendar className="w-4 h-4 mr-2 text-orange-400 flex-shrink-0" />
+                                  <span className="truncate">{ticket.date}</span>
                                 </div>
                                 <div className="flex items-center">
-                                  <MapPin className="w-4 h-4 mr-2 text-orange-400" />
-                                  {ticket.eventLocation}
+                                  <MapPin className="w-4 h-4 mr-2 text-orange-400 flex-shrink-0" />
+                                  <span className="truncate">{ticket.location}</span>
                                 </div>
-                              </div>
-                              <div>
-                                <div className="mb-1">
-                                  <span className="text-gray-400">Ticket Type:</span> {ticket.ticketType}
-                                </div>
-                                <div className="mb-1">
-                                  <span className="text-gray-400">Purchased:</span> {ticket.purchaseDate}
-                                </div>
-                                <div>
-                                  <span className="text-gray-400">Price:</span>{" "}
+                                <div className="flex items-center">
+                                  <span className="text-gray-400 mr-2">Price:</span>
                                   <span className="text-white font-semibold">{ticket.price}</span>
                                 </div>
                               </div>
+                              <div className="flex gap-2 mt-3">
+                                <button
+                                  onClick={() => openTicketModal(ticket)}
+                                  className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm transition-colors flex-1"
+                                >
+                                  Open Ticket
+                                </button>
+                                {ticket.status === "Active" && (
+                                  <button className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors flex-1">
+                                    Transfer
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2">
-                            <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
-                              View Ticket
-                            </button>
-                            {ticket.status === "Active" && (
-                              <button className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
-                                Transfer
-                              </button>
-                            )}
-                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -467,6 +608,38 @@ export default function ProfileDashboard() {
 
       {/* Settings Modal */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} user={user} />
+
+      {/* Custom Ticket Modal */}
+      {isTicketModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-700 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <h2 className="text-xl font-semibold text-white">Event Ticket</h2>
+              <button
+                onClick={closeTicketModal}
+                className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              {selectedTicket && (
+                <TicketComponent
+                  eventTitle={selectedTicket.title}
+                  eventBanner={selectedTicket.image}
+                  eventDate={selectedTicket.date}
+                  eventTime={selectedTicket.time}
+                  location={selectedTicket.location}
+                  organizerName={selectedTicket.organizer}
+                  price={selectedTicket.price}
+                  userName={user.name}
+                  userWallet={user.walletAddress}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
