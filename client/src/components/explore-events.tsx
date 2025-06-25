@@ -1,165 +1,186 @@
-"use client"
-import { Calendar, MapPin, Users, Search, Plus, User } from "lucide-react"
-import type React from "react"
+"use client";
+import { Calendar, MapPin, Users, Search, Plus, User } from "lucide-react";
+import type React from "react";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { useSelector } from "react-redux"
-import { getContract } from "@/contract/contract"
-import { toast } from "sonner"
-import { formatEther } from "ethers"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSelector } from "react-redux";
+import { getContract } from "@/contract/contract";
+import { toast } from "sonner";
+import { formatEther } from "ethers";
 
 interface Event {
-  id: number
-  title: string
-  image: string
-  date: string
-  time: string
-  location: string
-  price: string
-  attendees: number
-  category: string
-  status: string
-  description?: string
-  organizer?: string
-  maxTickets?: number
-  totalTicketsSold?: number
-  startDateTime?: string
-  endDateTime?: string
-  organizedBy?: string
+  id: number;
+  title: string;
+  image: string;
+  date: string;
+  time: string;
+  location: string;
+  price: string;
+  attendees: number;
+  category: string;
+  status: string;
+  description?: string;
+  organizer?: string;
+  maxTickets?: number;
+  totalTicketsSold?: number;
+  startDateTime?: string;
+  endDateTime?: string;
+  organizedBy?: string;
 }
 
 interface RootState {
   user: {
-    profilePicture?: string
-    name?: string
-  }
+    profilePicture?: string;
+    name?: string;
+  };
 }
 
 interface IPFSMetadata {
-  eventName: string
-  description: string
-  category: string
-  bannerImage: string
-  location: string
-  startDateTime: string
-  endDateTime: string
-  organizedBy: string
+  eventName: string;
+  description: string;
+  category: string;
+  bannerImage: string;
+  location: string;
+  startDateTime: string;
+  endDateTime: string;
+  organizedBy: string;
 }
 
 export default function ExploreEvents() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("All")
-  const [events, setEvents] = useState<Event[]>([])
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
-  const [isCreatingEvent, setIsCreatingEvent] = useState(false)
-  const [isNavigatingToProfile, setIsNavigatingToProfile] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const [isNavigatingToProfile, setIsNavigatingToProfile] = useState(false);
 
   // Get profile picture from Redux
-  const userProfile = useSelector((state: RootState) => state.user)
+  const userProfile = useSelector((state: RootState) => state.user);
 
   // Convert IPFS URI to HTTP URL
   const convertIPFSToHTTP = (ipfsUri: string): string => {
     if (ipfsUri?.startsWith("ipfs://")) {
-      return ipfsUri.replace("ipfs://", "https://lavender-tremendous-deer-798.mypinata.cloud/ipfs/")
+      return ipfsUri.replace(
+        "ipfs://",
+        "https://lavender-tremendous-deer-798.mypinata.cloud/ipfs/"
+      );
     }
-    return ipfsUri || "/placeholder.svg"
-  }
+    return ipfsUri || "/placeholder.svg";
+  };
 
   // Fetch IPFS metadata
-  const fetchIPFSMetadata = async (baseURI: string): Promise<IPFSMetadata | null> => {
+  const fetchIPFSMetadata = async (
+    baseURI: string
+  ): Promise<IPFSMetadata | null> => {
     try {
-      const httpUrl = convertIPFSToHTTP(baseURI)
-      const response = await fetch(httpUrl)
+      const httpUrl = convertIPFSToHTTP(baseURI);
+      const response = await fetch(httpUrl);
       if (!response.ok) {
-        throw new Error(`Failed to fetch metadata: ${response.statusText}`)
+        throw new Error(`Failed to fetch metadata: ${response.statusText}`);
       }
-      const metadata: IPFSMetadata = await response.json()
-      return metadata
+      const metadata: IPFSMetadata = await response.json();
+      return metadata;
     } catch (error) {
-      console.error("Error fetching IPFS metadata:", error)
-      return null
+      console.error("Error fetching IPFS metadata:", error);
+      return null;
     }
-  }
+  };
 
   // Format date and time from ISO string
   const formatDateTime = (isoString: string) => {
     try {
-      const date = new Date(isoString)
+      const date = new Date(isoString);
       const dateStr = date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
-      })
+      });
       const timeStr = date.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
         hour12: true,
-      })
-      return { date: dateStr, time: timeStr }
+      });
+      return { date: dateStr, time: timeStr };
     } catch (error) {
-      return { date: "TBD", time: "TBD" }
+      return { date: "TBD", time: "TBD" };
     }
-  }
+  };
 
   // Determine event status
-  const getEventStatus = (startDateTime?: string, endDateTime?: string, totalSold?: number, maxTickets?: number) => {
-    if (!startDateTime) return "Coming Soon"
+  const getEventStatus = (
+    startDateTime?: string,
+    endDateTime?: string,
+    totalSold?: number,
+    maxTickets?: number
+  ) => {
+    if (!startDateTime) return "Coming Soon";
 
-    const now = new Date()
-    const start = new Date(startDateTime)
-    const end = endDateTime ? new Date(endDateTime) : null
+    const now = new Date();
+    const start = new Date(startDateTime);
+    const end = endDateTime ? new Date(endDateTime) : null;
 
     if (now >= start && (!end || now <= end)) {
-      return "Live"
+      return "Live";
     } else if (end && now > end) {
-      return "Ended"
+      return "Ended";
     } else if (maxTickets && totalSold && totalSold >= maxTickets) {
-      return "Sold Out"
+      return "Sold Out";
     } else {
-      return "Selling"
+      return "Selling";
     }
-  }
+  };
 
   async function getEvents() {
-    setLoading(true)
+    setLoading(true);
 
     try {
-      const contract = await getContract()
-      const lastIdBn = await contract.nextEventId()
-      const lastId = Number(lastIdBn)
+      const contract = await getContract();
+      const lastIdBn = await contract.nextEventId();
+      const lastId = Number(lastIdBn);
 
-      // Load cached events if available
-      const cached = localStorage.getItem("events")
-      const cachedEvents: Event[] = cached ? JSON.parse(cached) : []
+      const cached = localStorage.getItem("events");
+      const cachedEvents: Event[] = cached
+        ? JSON.parse(cached).map((event: any) => ({
+            ...event,
+            image: convertIPFSToHTTP(event.banner || event.image),
+          }))
+        : [];
 
-      setEvents(cachedEvents) // show cached data immediately
+      setEvents(cachedEvents);
 
-      const newEvents: Event[] = []
+      const newEvents: Event[] = [];
 
       for (let i = cachedEvents.length; i < lastId; i++) {
         try {
-          const eventData = await contract.getEventDetails(i.toString())
-          const [name, ticketPrice, maxTickets, totalTicketsSold, baseURI, organizer] = eventData
+          const eventData = await contract.getEventDetails(i.toString());
+          const [
+            name,
+            ticketPrice,
+            maxTickets,
+            totalTicketsSold,
+            baseURI,
+            organizer,
+          ] = eventData;
 
           // Fetch IPFS metadata
-          const metadata = await fetchIPFSMetadata(baseURI)
+          const metadata = await fetchIPFSMetadata(baseURI);
 
           if (metadata) {
             // Format date and time
-            const { date, time } = formatDateTime(metadata.startDateTime)
+            const { date, time } = formatDateTime(metadata.startDateTime);
 
             // Convert ticket price from wei to ETH
-            const priceInETH = formatEther(ticketPrice)
+            const priceInETH = formatEther(ticketPrice);
 
             // Determine event status
             const status = getEventStatus(
               metadata.startDateTime,
               metadata.endDateTime,
               Number(totalTicketsSold),
-              Number(maxTickets),
-            )
+              Number(maxTickets)
+            );
 
             // Construct complete event object with proper defaults
             const completeEvent: Event = {
@@ -180,9 +201,9 @@ export default function ExploreEvents() {
               startDateTime: metadata.startDateTime,
               endDateTime: metadata.endDateTime,
               organizedBy: metadata.organizedBy,
-            }
+            };
 
-            newEvents.push(completeEvent)
+            newEvents.push(completeEvent);
           } else {
             // Fallback if IPFS metadata fails
             const fallbackEvent: Event = {
@@ -192,85 +213,91 @@ export default function ExploreEvents() {
               date: "TBD",
               time: "TBD",
               location: "TBD",
-              price: formatEther(ticketPrice) === "0.0" ? "Free" : `${formatEther(ticketPrice)} ETH`,
+              price:
+                formatEther(ticketPrice) === "0.0"
+                  ? "Free"
+                  : `${formatEther(ticketPrice)} ETH`,
               attendees: Number(totalTicketsSold) || 0,
               category: "General",
               status: "Coming Soon",
               organizer,
               maxTickets: Number(maxTickets) || 0,
               totalTicketsSold: Number(totalTicketsSold) || 0,
-            }
+            };
 
-            newEvents.push(fallbackEvent)
+            newEvents.push(fallbackEvent);
           }
         } catch (eventError) {
-          console.error(`Error fetching event ${i}:`, eventError)
+          console.error(`Error fetching event ${i}:`, eventError);
           // Continue with next event instead of showing toast for each error
         }
       }
 
       // Merge cached and new events
-      const mergedEvents = [...cachedEvents, ...newEvents]
-      setEvents(mergedEvents)
-      localStorage.setItem("events", JSON.stringify(mergedEvents))
+      const mergedEvents = [...cachedEvents, ...newEvents];
+      setEvents(mergedEvents);
+      localStorage.setItem("events", JSON.stringify(mergedEvents));
 
       if (newEvents.length > 0) {
-        toast.success(`Successfully loaded ${newEvents.length} new events from blockchain!`)
+        toast.success(
+          `Successfully loaded ${newEvents.length} new events from blockchain!`
+        );
       } else if (mergedEvents.length === 0) {
-        toast.info("No events found on the blockchain yet.")
+        toast.info("No events found on the blockchain yet.");
       }
     } catch (error) {
-      console.error("Error fetching events:", error)
-      toast.error("Failed to fetch events. Please try again later.")
+      console.error("Error fetching events:", error);
+      toast.error("Failed to fetch events. Please try again later.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   const refreshEvents = async () => {
-    localStorage.removeItem("events")
-    setEvents([])
-    await getEvents()
-  }
+    localStorage.removeItem("events");
+    setEvents([]);
+    await getEvents();
+  };
 
   useEffect(() => {
-    getEvents()
-  }, [])
+    getEvents();
+  }, []);
 
   // Filter events based on search term and category
   const filteredEvents = events.filter((event) => {
-    const searchLower = searchTerm.toLowerCase()
+    const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
       event.title.toLowerCase().includes(searchLower) ||
       event.location.toLowerCase().includes(searchLower) ||
       event.category.toLowerCase().includes(searchLower) ||
-      event.date.toLowerCase().includes(searchLower)
+      event.date.toLowerCase().includes(searchLower);
 
-    const matchesCategory = selectedCategory === "All" || event.category === selectedCategory
+    const matchesCategory =
+      selectedCategory === "All" || event.category === selectedCategory;
 
-    return matchesSearch && matchesCategory
-  })
+    return matchesSearch && matchesCategory;
+  });
 
   // Handle event card click - redirect to event detail page
   const handleEventClick = (eventId: number) => {
-    router.push(`/event/${eventId}`)
-  }
+    router.push(`/event/${eventId}`);
+  };
 
   // Handle get ticket button click - redirect to event detail page
   const handleGetTicketClick = (eventId: number, e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent event card click
-    router.push(`/event/${eventId}`)
-  }
+    e.stopPropagation(); // Prevent event card click
+    router.push(`/event/${eventId}`);
+  };
 
   const handleCreateEvent = async () => {
-    setIsCreatingEvent(true)
-    router.push("/create")
-  }
+    setIsCreatingEvent(true);
+    router.push("/create");
+  };
 
   const handleProfileClick = async () => {
-    setIsNavigatingToProfile(true)
-    router.push("/profile")
-  }
+    setIsNavigatingToProfile(true);
+    router.push("/profile");
+  };
 
   const categories = [
     "All",
@@ -284,7 +311,7 @@ export default function ExploreEvents() {
     "Meetup",
     "Festival",
     "Sports",
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 py-12">
@@ -295,7 +322,9 @@ export default function ExploreEvents() {
             <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
               Explore Events
             </h1>
-            <p className="text-xl text-gray-300">Discover amazing Web3 events happening around the world</p>
+            <p className="text-xl text-gray-300">
+              Discover amazing Web3 events happening around the world
+            </p>
           </div>
 
           {/* Profile Picture and Create Event Button */}
@@ -377,8 +406,14 @@ export default function ExploreEvents() {
           <div className="mb-6">
             <p className="text-gray-300">
               {filteredEvents.length === 0
-                ? `No events found${searchTerm ? ` for "${searchTerm}"` : ""}${selectedCategory !== "All" ? ` in ${selectedCategory}` : ""}`
-                : `Found ${filteredEvents.length} event${filteredEvents.length !== 1 ? "s" : ""}${searchTerm ? ` for "${searchTerm}"` : ""}${selectedCategory !== "All" ? ` in ${selectedCategory}` : ""}`}
+                ? `No events found${searchTerm ? ` for "${searchTerm}"` : ""}${
+                    selectedCategory !== "All" ? ` in ${selectedCategory}` : ""
+                  }`
+                : `Found ${filteredEvents.length} event${
+                    filteredEvents.length !== 1 ? "s" : ""
+                  }${searchTerm ? ` for "${searchTerm}"` : ""}${
+                    selectedCategory !== "All" ? ` in ${selectedCategory}` : ""
+                  }`}
             </p>
           </div>
         )}
@@ -411,10 +446,10 @@ export default function ExploreEvents() {
                         event.status === "Live"
                           ? "bg-green-500 text-white"
                           : event.status === "Selling"
-                            ? "bg-orange-500 text-white"
-                            : event.status === "Sold Out"
-                              ? "bg-red-500 text-white"
-                              : "bg-gray-600 text-gray-200"
+                          ? "bg-orange-500 text-white"
+                          : event.status === "Sold Out"
+                          ? "bg-red-500 text-white"
+                          : "bg-gray-600 text-gray-200"
                       }`}
                     >
                       {event.status}
@@ -443,22 +478,31 @@ export default function ExploreEvents() {
                     </div>
                     <div className="flex items-center text-gray-300 text-sm">
                       <Users className="w-4 h-4 mr-2 text-orange-400" />
-                      {(event.attendees || 0).toLocaleString()} / {(event.maxTickets || 0).toLocaleString()} tickets
+                      {(event.attendees || 0).toLocaleString()} /{" "}
+                      {(event.maxTickets || 0).toLocaleString()} tickets
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <div className="text-2xl font-bold text-white">{event.price}</div>
+                    <div className="text-2xl font-bold text-white">
+                      {event.price}
+                    </div>
                     <button
                       onClick={(e) => handleGetTicketClick(event.id, e)}
-                      disabled={event.status === "Sold Out" || event.status === "Ended"}
+                      disabled={
+                        event.status === "Sold Out" || event.status === "Ended"
+                      }
                       className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 ${
                         event.status === "Sold Out" || event.status === "Ended"
                           ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                           : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
                       }`}
                     >
-                      {event.status === "Sold Out" ? "Sold Out" : event.status === "Ended" ? "Ended" : "Get Ticket"}
+                      {event.status === "Sold Out"
+                        ? "Sold Out"
+                        : event.status === "Ended"
+                        ? "Ended"
+                        : "Get Ticket"}
                     </button>
                   </div>
                 </div>
@@ -499,18 +543,20 @@ export default function ExploreEvents() {
         )}
 
         {/* Load More - only show if there are results and no filters applied */}
-        {filteredEvents.length > 0 && !searchTerm && selectedCategory === "All" && (
-          <div className="text-center mt-12">
-            <button
-              onClick={refreshEvents}
-              disabled={loading}
-              className="border border-gray-600 text-white hover:bg-gray-800 px-8 py-3 text-lg bg-transparent rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
-            >
-              {loading ? "Refreshing..." : "Refresh Events Onchain"}
-            </button>
-          </div>
-        )}
+        {filteredEvents.length > 0 &&
+          !searchTerm &&
+          selectedCategory === "All" && (
+            <div className="text-center mt-12">
+              <button
+                onClick={refreshEvents}
+                disabled={loading}
+                className="border border-gray-600 text-white hover:bg-gray-800 px-8 py-3 text-lg bg-transparent rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
+              >
+                {loading ? "Refreshing..." : "Refresh Events Onchain"}
+              </button>
+            </div>
+          )}
       </div>
     </div>
-  )
+  );
 }

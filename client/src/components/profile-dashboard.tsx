@@ -8,6 +8,7 @@ import SettingsModal from "./settings-modal"
 import { getContract } from "@/contract/contract"
 import { toast } from "sonner"
 import TicketComponent from "./ticket"
+import { useRouter } from "next/navigation"
 
 interface Event {
   id: number
@@ -80,8 +81,14 @@ export default function ProfileDashboard() {
   const [isLoadingTickets, setIsLoadingTickets] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<Event | null>(null)
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false)
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false)
+  const [isViewingEvent, setIsViewingEvent] = useState<number | null>(null)
+  const [withdrawalLoading, setWithdrawalLoading] = useState<{ [key: number]: boolean }>({})
+  const [withdrawnEvents, setWithdrawnEvents] = useState<Set<number>>(new Set())
 
-  const userReal = useSelector((state: RootState) => state.user)
+  const router = useRouter()
   const convertIPFSToHTTP = (ipfsUri: string): string => {
     if (ipfsUri?.startsWith("ipfs://")) {
       return ipfsUri.replace("ipfs://", "https://lavender-tremendous-deer-798.mypinata.cloud/ipfs/")
@@ -103,16 +110,20 @@ export default function ProfileDashboard() {
     }
   }
   // Mock user data
-  const user = {
-    name: userReal.name,
-    email: userReal.email,
-    avatar: userReal.profilePicture,
-    walletAddress: userReal.walletAddress,
-    joinDate: "March 2023",
-    totalEvents: 12,
-    totalTickets: 8,
-    eventsCreated: 3,
-  }
+ const currentUser = useSelector((state: RootState) => state.user);
+
+const user = {
+  name: currentUser.name,
+  email: currentUser.email,
+  avatar: currentUser.profilePicture,
+  walletAddress: currentUser.walletAddress,
+  joinDate: "March 2023", 
+  totalEvents: currentUser.eventsCreated.length,
+  totalTickets: currentUser.ticketsOwned.length,
+  eventsCreated: currentUser.eventsCreated.length,
+  totalAttended: 0, 
+};
+
   const formatDateTime = (isoString: string) => {
     try {
       const date = new Date(isoString)
@@ -134,11 +145,11 @@ export default function ProfileDashboard() {
   const getCreatedEvents = async () => {
     try {
       setIsLoadingCreated(true)
-      setEventsCreated([]) // Clear existing data to prevent duplicates
+      setEventsCreated([])
       const contract = await getContract()
       const events: Event[] = []
 
-      for (const eventId of userReal.eventsCreated) {
+      for (const eventId of currentUser.eventsCreated) {
         console.log("Fetching event details for ID:", eventId)
         const event = await contract.getEventDetails(eventId.toString())
         const metadata = await fetchIPFSMetadata(event.baseURI)
@@ -175,7 +186,7 @@ export default function ProfileDashboard() {
       const contract = await getContract()
       const tickets: Event[] = []
 
-      for (const ticket of userReal.ticketsOwned) {
+      for (const ticket of currentUser.ticketsOwned) {
         const eventId = await contract.tokenToEvent(ticket.toString())
         const event = await contract.getEventDetails(eventId.toString())
         const metadata = await fetchIPFSMetadata(event.baseURI)
@@ -213,6 +224,41 @@ export default function ProfileDashboard() {
   const closeTicketModal = () => {
     setIsTicketModalOpen(false)
     setSelectedTicket(null)
+  }
+
+  const openManageModal = (event: Event) => {
+    setSelectedEvent(event)
+    setIsManageModalOpen(true)
+  }
+
+  const closeManageModal = () => {
+    setIsManageModalOpen(false)
+    setSelectedEvent(null)
+  }
+
+  const handleViewEvent = (eventId: number) => {
+    setIsViewingEvent(eventId)
+    router.push(`/event/${eventId}`)
+  }
+
+  const handleWithdraw = async (eventId: number) => {
+    try {
+      setWithdrawalLoading((prev) => ({ ...prev, [eventId]: true }))
+      const contract = await getContract()
+      const tx = await contract.withdrawForEvent(eventId.toString())
+      await tx.wait()
+
+      // Update withdrawn events set
+      setWithdrawnEvents((prev) => new Set([...prev, eventId]))
+
+      toast.success("Withdrawal completed successfully!")
+      closeManageModal()
+    } catch (error) {
+      console.error("Withdrawal error:", error)
+      toast.error("Failed to withdraw. Please try again.")
+    } finally {
+      setWithdrawalLoading((prev) => ({ ...prev, [eventId]: false }))
+    }
   }
 
   // Mock events attended
@@ -305,7 +351,7 @@ export default function ProfileDashboard() {
                 <h2 className="text-xl font-bold text-white mb-1">{user.name}</h2>
                 <p className="text-gray-400 text-sm mb-3">{user.email}</p>
                 <div className="bg-gray-700/50 rounded-lg p-2 mb-3">
-                  <p className="text-[11px] text-gray-300 font-mono">{user.walletAddress}</p>
+                  <p className="text-[9px] text-gray-300 font-mono">{user.walletAddress}</p>
                 </div>
                 <p className="text-gray-500 text-sm">Member since {user.joinDate}</p>
               </div>
@@ -328,9 +374,16 @@ export default function ProfileDashboard() {
 
               {/* Actions */}
               <div className="space-y-3">
-                <button className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center">
+                <button
+                  onClick={() => {
+                    setIsCreatingEvent(true)
+                    router.push("/create")
+                  }}
+                  disabled={isCreatingEvent}
+                  className={`w-full ${isCreatingEvent ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center`}
+                >
                   <Plus className="w-4 h-4 mr-2" />
-                  Create Event
+                  {isCreatingEvent ? "Creating..." : "Create Event"}
                 </button>
                 <button
                   onClick={() => setIsSettingsOpen(true)}
@@ -408,13 +461,6 @@ export default function ProfileDashboard() {
                             alt={event.title}
                             className="w-full h-32 object-cover"
                           />
-                          <div className="absolute top-3 right-3">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}
-                            >
-                              {event.status}
-                            </span>
-                          </div>
                         </div>
                         <div className="p-4">
                           <h3 className="font-semibold text-white mb-2">{event.title}</h3>
@@ -443,9 +489,16 @@ export default function ProfileDashboard() {
                       <Star className="w-5 h-5 mr-2 text-orange-400" />
                       Events Created ({eventsCreated.length})
                     </h2>
-                    <button className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center">
+                    <button
+                      onClick={() => {
+                        setIsCreatingEvent(true)
+                        router.push("/create")
+                      }}
+                      disabled={isCreatingEvent}
+                      className={`${isCreatingEvent ? "opacity-50 cursor-not-allowed" : ""} bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center`}
+                    >
                       <Plus className="w-4 h-4 mr-2" />
-                      Create New Event
+                      {isCreatingEvent ? "Creating..." : "Create New Event"}
                     </button>
                   </div>
 
@@ -478,13 +531,6 @@ export default function ProfileDashboard() {
                               alt={event.title}
                               className="w-full h-32 object-cover"
                             />
-                            <div className="absolute top-3 right-3">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(event.status)}`}
-                              >
-                                {event.status}
-                              </span>
-                            </div>
                           </div>
                           <div className="p-4">
                             <h3 className="font-semibold text-white mb-2">{event.title}</h3>
@@ -503,11 +549,18 @@ export default function ProfileDashboard() {
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-1 px-3 rounded text-sm transition-colors">
-                                Edit
+                              <button
+                                onClick={() => openManageModal(event)}
+                                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-1 px-3 rounded text-sm transition-colors"
+                              >
+                                Manage
                               </button>
-                              <button className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded text-sm transition-colors">
-                                View
+                              <button
+                                onClick={() => handleViewEvent(event.id)}
+                                disabled={isViewingEvent === event.id}
+                                className={`flex-1 ${isViewingEvent === event.id ? "opacity-50 cursor-not-allowed" : ""} bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded text-sm transition-colors`}
+                              >
+                                {isViewingEvent === event.id ? "Loading..." : "View"}
                               </button>
                             </div>
                           </div>
@@ -587,11 +640,11 @@ export default function ProfileDashboard() {
                                 >
                                   Open Ticket
                                 </button>
-                                {ticket.status === "Active" && (
+                                {/* {ticket.status === "Active" && (
                                   <button className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors flex-1">
                                     Transfer
                                   </button>
-                                )}
+                                )} */}
                               </div>
                             </div>
                           </div>
@@ -636,6 +689,123 @@ export default function ProfileDashboard() {
                   userWallet={user.walletAddress}
                 />
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Event Modal */}
+      {isManageModalOpen && selectedEvent && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <h2 className="text-xl font-semibold text-white">Manage Event</h2>
+              <button
+                onClick={closeManageModal}
+                className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Event Details */}
+                <div className="flex items-start space-x-4">
+                  <img
+                    src={selectedEvent.image || "/placeholder.svg"}
+                    alt={selectedEvent.title}
+                    className="w-24 h-24 rounded-lg object-cover"
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-white mb-2">{selectedEvent.title}</h3>
+                    <div className="space-y-2 text-sm text-gray-300">
+                      <div className="flex items-center">
+                        <Calendar className="w-4 h-4 mr-2 text-orange-400" />
+                        {selectedEvent.date} at {selectedEvent.time}
+                      </div>
+                      <div className="flex items-center">
+                        <MapPin className="w-4 h-4 mr-2 text-orange-400" />
+                        {selectedEvent.location}
+                      </div>
+                      <div className="flex items-center">
+                        <Users className="w-4 h-4 mr-2 text-orange-400" />
+                        {selectedEvent.attendees} registered
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Event Stats */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                    <div className="text-2xl font-bold text-white">{selectedEvent.attendees}</div>
+                    <div className="text-sm text-gray-400">Total Attendees</div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                    <div className="text-2xl font-bold text-white">{selectedEvent.price}</div>
+                    <div className="text-sm text-gray-400">Ticket Price</div>
+                  </div>
+                </div>
+
+                {/* Revenue Section */}
+                <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                  <h4 className="text-lg font-semibold text-white mb-3">Revenue</h4>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-gray-300">Total Revenue:</span>
+                    <span className="text-xl font-bold text-green-400">
+                      {selectedEvent.price === "Free"
+                        ? "Free Event"
+                        : `${(Number(selectedEvent.price.replace(" ETH", "")) * selectedEvent.attendees).toFixed(3)} ETH`}
+                    </span>
+                  </div>
+                  {selectedEvent.price !== "Free" && (
+                    <>
+                      {withdrawnEvents.has(selectedEvent.id) ? (
+                        <div className="w-full bg-gray-600 text-gray-300 py-2 px-4 rounded-lg font-medium text-center border border-gray-500">
+                          ✓ Already Withdrawn
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleWithdraw(selectedEvent.id)}
+                          disabled={withdrawalLoading[selectedEvent.id]}
+                          className={`w-full ${
+                            withdrawalLoading[selectedEvent.id]
+                              ? "bg-green-500 cursor-not-allowed opacity-75"
+                              : "bg-green-600 hover:bg-green-700"
+                          } text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center`}
+                        >
+                          {withdrawalLoading[selectedEvent.id] ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Processing Withdrawal...
+                            </>
+                          ) : (
+                            "Withdraw Balance"
+                          )}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {selectedEvent.price === "Free" && (
+                    <button
+                      disabled
+                      className="w-full bg-gray-600 cursor-not-allowed text-gray-400 py-2 px-4 rounded-lg font-medium"
+                    >
+                      No Balance to Withdraw (Free Event)
+                    </button>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={closeManageModal}
+                    className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-6 rounded-lg font-medium transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

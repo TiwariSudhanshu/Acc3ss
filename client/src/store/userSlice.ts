@@ -14,7 +14,8 @@ const initialState: UserState = {
   name: "",
   email: "",
   walletAddress: "",
-  profilePicture: "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
+  profilePicture:
+    "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
   ticketsOwned: [],
   eventsCreated: [],
   isLoggedIn: false,
@@ -39,11 +40,23 @@ const userSlice = createSlice({
     updateProfilePicture(state, action: PayloadAction<string>) {
       state.profilePicture = action.payload;
     },
-    updateUserDetails(state, action: PayloadAction<{ name: string; email: string }>) {
-  state.name = action.payload.name;
-  state.email = action.payload.email;
-}
-
+    updateUserDetails(
+      state,
+      action: PayloadAction<{ name: string; email: string }>
+    ) {
+      state.name = action.payload.name;
+      state.email = action.payload.email;
+    },
+    addTicketOwned(state, action: PayloadAction<string>) {
+      if (!state.ticketsOwned.includes(action.payload)) {
+        state.ticketsOwned.push(action.payload);
+      }
+    },
+    addEventCreated(state, action: PayloadAction<string>) {
+      if (!state.eventsCreated.includes(action.payload)) {
+        state.eventsCreated.push(action.payload);
+      }
+    },
   },
 });
 
@@ -54,6 +67,8 @@ export const {
   updateEvents,
   updateProfilePicture,
   updateUserDetails,
+  addTicketOwned,
+  addEventCreated,
 } = userSlice.actions;
 
 export default userSlice.reducer;

@@ -9,9 +9,12 @@ import ShareModal from "./share-model"
 import BuyTicketModal from "./buy-ticket-modal"
 
 interface Speaker {
+  id: string
   name: string
-  role: string
-  avatar?: string
+  description: string
+  email: string
+  hasImage?: boolean
+  imageUrl?: string
 }
 
 interface AgendaItem {
@@ -245,6 +248,13 @@ export default function EventDetails() {
         const requirements = parseListItems(metadata.requirementsToAttend)
         const perks = parseListItems(metadata.whatsIncluded)
 
+        // Process speakers with image URLs
+        const processedSpeakers =
+          metadata.speakers?.map((speaker, index) => ({
+            ...speaker,
+            imageUrl: speaker.hasImage ? convertIPFSToHTTP(`speaker_${index}_image_url_from_metadata`) : undefined,
+          })) || []
+
         const completeEventData: EventData = {
           id: Number(eventId),
           title: metadata.eventName || name,
@@ -267,7 +277,7 @@ export default function EventDetails() {
             address: organizer,
             verified: true,
           },
-          speakers: metadata.speakers || [],
+          speakers: processedSpeakers,
           agenda: parsedAgenda,
           perks: perks.length > 0 ? perks : undefined,
           requirements: requirements.length > 0 ? requirements : undefined,
@@ -451,15 +461,19 @@ export default function EventDetails() {
               {eventData.speakers && eventData.speakers.length > 0 ? (
                 <div className="grid md:grid-cols-2 gap-6">
                   {eventData.speakers.map((speaker, index) => (
-                    <div key={index} className="flex items-center space-x-4 p-4 bg-gray-700/30 rounded-2xl">
+                    <div
+                      key={speaker.id || index}
+                      className="flex items-start space-x-4 p-6 bg-gray-700/30 rounded-2xl"
+                    >
                       <img
-                        src={speaker.avatar || "/placeholder.svg?height=64&width=64"}
+                        src={speaker.imageUrl || "/placeholder.svg?height=80&width=80"}
                         alt={speaker.name}
-                        className="w-16 h-16 rounded-full object-cover"
+                        className="w-20 h-20 rounded-full object-cover flex-shrink-0"
                       />
-                      <div>
-                        <h3 className="text-lg font-bold text-white">{speaker.name}</h3>
-                        <p className="text-gray-300">{speaker.role}</p>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white mb-2">{speaker.name}</h3>
+                        <p className="text-gray-300 text-sm leading-relaxed">{speaker.description}</p>
+                        {speaker.email && <p className="text-gray-400 text-xs mt-2">{speaker.email}</p>}
                       </div>
                     </div>
                   ))}

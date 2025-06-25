@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { getContract } from "@/contract/contract";
 import { BigNumberish, parseEther } from "ethers";
 import { useAccount } from "wagmi";
+import { useAppDispatch } from "@/store/hook";
+import  {addTicketOwned} from "@/store/userSlice"; 
 
 interface BuyTicketModalProps {
   isOpen: boolean;
@@ -32,59 +34,50 @@ export default function BuyTicketModal({
   if (!isOpen) return null;
 
   const [loading, setLoading] = useState(false);
+  const dispatch = useAppDispatch();
+  const { address } = useAccount();
 
-  const {address} = useAccount();
+ const handlePurchase = async () => {
+  setLoading(true);
+  try {
+    const contract = await getContract();
 
-  const addTicketToUser = async () => {
-    try {
-      const contract = await getContract();
-      const lastTicketId = await contract.nextTokenId();
-      const ticketId = lastTicketId.toNumber() - 1; 
-      await fetch("/api/addOwnedTicket", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ticketId,
-          walletAddress: address,
-        }),
-      });
-      toast.success("Ticket added to your account successfully!");
-      console.log("Ticket added to user successfully");
+    let value: BigNumberish = 0;
+    if (eventData.price !== "Free") {
+      const ethValue = eventData.price.replace(" ETH", "").trim();
+      value = parseEther(ethValue);
     }
-    catch (error) {
-      console.error("Error adding ticket to user:", error);
-      toast.error("Failed to add ticket to user. Please try again later.");
-    }
+
+    const tx = await contract.mintTicket(eventData.id, { value });
+    const receipt = await tx.wait();
+
+    const event = receipt.events?.find(
+      (e:any) =>
+        e.event === "TicketMinted" &&
+        e.args?.to.toLowerCase() === address?.toLowerCase()
+    );
+
+    if (!event) throw new Error("TicketMinted event not found");
+
+    const ticketId = event.args?.ticketId.toNumber();
+
+    await fetch("/api/addOwnedTicket", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketId, walletAddress: address }),
+    });
+    dispatch(addTicketOwned(ticketId.toString()));
+
+    toast.success("Ticket purchased successfully");
+    onClose();
+  } catch (error) {
+    console.error("Purchase failed:", error);
+    toast.error("Purchase failed. Please try again later.");
+  } finally {
+    setLoading(false);
   }
+};
 
-  const handlePurchase = async () => {
-    setLoading(true);
-    try {
-      const contract = await getContract();
-
-      let value: BigNumberish = 0;
-      if (eventData.price !== "Free") {
-        value = parseEther(eventData.price.toString());
-      }
-
-      const tx = await contract.mintTicket(eventData.id, { value });
-      const receipt = await tx.wait();
-
-      if (tx) {
-        await addTicketToUser();
-        toast.success("Ticket purchased successfully!");
-        console.log("Transaction successful:", receipt);
-        onClose();
-      }
-    } catch (error) {
-      console.error("Purchase failed:", error);
-      toast.error("Purchase failed. Please try again later.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">

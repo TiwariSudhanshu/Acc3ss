@@ -5,6 +5,9 @@ import { Upload, Calendar, Tag, Settings, Users, Plus, X, FileText } from "lucid
 import { toast } from "sonner"
 import { getContract } from "@/contract/contract"
 import { useAccount } from "wagmi"
+import { parseEther } from "ethers"
+import { useAppDispatch } from "@/store/hook";
+import  {addEventCreated} from "@/store/userSlice"; 
 
 interface Speaker {
   id: string
@@ -69,6 +72,9 @@ export default function CreateEventForm() {
   const [communityName, setCommunityName] = useState("")
   const [isFreeEvent, setIsFreeEvent] = useState(false)
   const [loading, setLoading] = useState(false)
+
+    const dispatch = useAppDispatch();
+
 
   // Handle banner image upload with preview
   const handleBannerUpload = (file: File | null) => {
@@ -279,109 +285,81 @@ export default function CreateEventForm() {
     }
   }
 
-  const createEvent = async (metadataUrl: string) => {
-    try {
-      const contract = await getContract()
-      const tx = await contract.createEvent(
-  eventName,
-  isFreeEvent ? "0" : priceInETH,
-  maxTicketsAvailable,
-  metadataUrl
-)
-      console.log("Transaction sent:", tx)
-      const receipt = await tx.wait()
-      console.log("Transaction confirmed:", receipt)
+ const createEvent = async (metadataUrl: string) => {
+  const priceInWei = isFreeEvent ? "0" : parseEther(priceInETH).toString()
+  const contract = await getContract()
+  const tx = await contract.createEvent(
+    eventName,
+    priceInWei,
+    maxTicketsAvailable,
+    metadataUrl
+  )
+  const receipt = await tx.wait()
+  const eventLog = receipt.events?.find((e: any) => e.event === "EventCreated")
+  const eventId = eventLog?.args?.eventId.toNumber()
+  if (!eventId && eventId !== 0) throw new Error("Event ID not found from logs")
+  return eventId
+}
+const { address } = useAccount();
+const addEventIdToDb = async (eventId: number) => {
+  const res = await fetch("/api/addEventToDb", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      eventId,
+      walletAddress: address,
+    }),
+  })
+  dispatch(addEventCreated(eventId.toString()));
 
-      return receipt
-    } catch (error) {
-      console.error("Error creating event on blockchain:", error)
-      throw new Error("Failed to create event on blockchain")
-    }
-  }
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.message || "Failed to add event to DB")
+}
 
-  const {address} =  useAccount();
- const addEventId = async ( ) => {
+const handleOperations = async () => {
+  if (!validateForm()) return
+  setLoading(true)
+  const loadingToast = toast.loading("Processing event creation...")
+
   try {
-     const contract = await getContract()
-      const lastIdBn = await contract.nextEventId();
-      const eventId = lastIdBn.toNumber() - 1; 
-    const res = await fetch("/api/addEventToDb", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        eventId,
-        walletAddress: address,
-      }),
-    });
+    const { metadata } = handleSubmit()
+    toast.loading("Uploading metadata to IPFS...", { id: loadingToast })
+    const metadataUrl = await addDataToIPFS(metadata)
+    toast.loading("Creating event on blockchain...", { id: loadingToast })
+    const eventId = await createEvent(metadataUrl)
+    await addEventIdToDb(eventId)
+    toast.success("Event created successfully!", { id: loadingToast })
 
-    const data = await res.json();
-
-    if (res.ok) {
-      console.log("Event added to database:", data);
-    } else {
-      console.error("Failed to add:", data);
-    }
+    setEventName("")
+    setCategory("")
+    setDescription("")
+    setBannerImage(null)
+    setBannerPreview(null)
+    setLocation("")
+    setStartDateTime("")
+    setEndDateTime("")
+    setRequirementsToAttend("")
+    setWhatsIncluded("")
+    setAgenda("")
+    setTicketName("")
+    setPriceInETH("")
+    setMaxTicketsAvailable(0)
+    setMaxPerWallet(0)
+    setSaleStartDate("")
+    setNetwork("Ethereum Mainnet")
+    setRoyaltyPercentage("")
+    setSpeakers([])
+    setSpeakerPreviews({})
+    setOrganizedBy("solo")
+    setCommunityName("")
+    setIsFreeEvent(false)
   } catch (error) {
-    console.error("Error adding event to database:", error);
+    toast.error(error instanceof Error ? error.message : "An error occurred", { id: loadingToast })
+  } finally {
+    setLoading(false)
   }
-};
+}
 
-
-  const handleOperations = async () => {
-    if (!validateForm()) {
-      return
-    }
-
-    setLoading(true)
-    const loadingToast = toast.loading("Processing your event creation...")
-
-    try {
-      // Collect form data
-      const { metadata } = handleSubmit()
-
-      // Upload to IPFS first
-      toast.loading("Uploading metadata to IPFS...", { id: loadingToast })
-      const metadataUrl = await addDataToIPFS(metadata)
-
-      // Create event on blockchain
-      toast.loading("Creating event on blockchain...", { id: loadingToast })
-      await createEvent(metadataUrl)
-      await addEventId();
-      toast.success("Event created successfully!", { id: loadingToast })
-      setEventName("")
-      setCategory("")
-      setDescription("")
-      setBannerImage(null)
-      setBannerPreview(null)
-      setLocation("")
-      setStartDateTime("")
-      setEndDateTime("")
-      setRequirementsToAttend("")
-      setWhatsIncluded("")
-      setAgenda("")
-      setTicketName("")
-      setPriceInETH("")
-      setMaxTicketsAvailable(0)
-      setMaxPerWallet(0)
-      setSaleStartDate("")
-      setNetwork("Ethereum Mainnet")
-      setRoyaltyPercentage("")
-      setSpeakers([])
-      setSpeakerPreviews({})
-      setOrganizedBy("solo")
-      setCommunityName("")
-      setIsFreeEvent(false)
-    } catch (error) {
-      console.error("Error during operations:", error)
-      toast.error(error instanceof Error ? error.message : "An error occurred while processing your request", {
-        id: loadingToast,
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 py-12">

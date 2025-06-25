@@ -13,7 +13,6 @@ function cleanMetadata(obj: Record<string, any>) {
   );
 }
 
-
 export async function POST(req: NextRequest) {
   try {
     const data = await req.formData();
@@ -24,16 +23,56 @@ export async function POST(req: NextRequest) {
     const location = data.get("location") as string;
     const startDateTime = data.get("startDateTime") as string;
     const endDateTime = data.get("endDateTime") as string;
-    const speakers = JSON.parse(data.get("speakers") as string);
+    const speakersData = data.get("speakers") as string;
     const organizedBy = data.get("organizedBy") as string;
     const communityName = data.get("communityName") as string;
     const requirementsToAttend = data.get("requirementsToAttend") as string;
     const whatsIncluded = data.get("whatsIncluded") as string;
     const agenda = data.get("agenda") as string;
 
-    // Upload the banner image to Pinata
     const { cid: imageCID } = await pinata.upload.public.file(file);
     const imageUrl = `ipfs://${imageCID}`;
+
+    let speakers = [];
+    try {
+      speakers = JSON.parse(speakersData);
+    } catch (e) {
+      console.error("Error parsing speakers data:", e);
+      speakers = [];
+    }
+
+    const processedSpeakers = await Promise.all(
+      speakers.map(async (speaker: any, index: number) => {
+        const speakerImageKey = `speakerImage_${index}`;
+        const speakerImageFile = data.get(speakerImageKey) as File;
+        
+        if (speakerImageFile && speakerImageFile.size > 0) {
+          try {
+            const { cid: speakerImageCID } = await pinata.upload.public.file(speakerImageFile);
+            const speakerImageUrl = `ipfs://${speakerImageCID}`;
+            
+            return {
+              ...speaker,
+              avatar: speakerImageUrl
+            };
+          } catch (error) {
+            console.error(`Error uploading speaker ${index} image:`, error);
+            return {
+              name: speaker.name || '',
+              role: speaker.role || '',
+              avatar: speaker.avatar || '' 
+            };
+          }
+        }
+        
+        return {
+          name: speaker.name || '',
+          role: speaker.role || '',
+          avatar: speaker.avatar || ''
+        };
+      })
+    );
+
     const metadata = cleanMetadata({
       eventName,
       description,
@@ -42,7 +81,7 @@ export async function POST(req: NextRequest) {
       location,
       startDateTime,
       endDateTime,
-      speakers,
+      speakers: processedSpeakers,
       organizedBy,
       communityName: organizedBy === "community" ? communityName : undefined,
       requirementsToAttend,
