@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react"
 
-import { Calendar, MapPin, Users, Ticket, Plus, Settings, Trophy, Star, X } from "lucide-react"
+import { Calendar, MapPin, Users, Ticket, Plus, Settings, Trophy, Star, X, Download } from "lucide-react"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store"
 import SettingsModal from "./settings-modal"
@@ -110,19 +110,19 @@ export default function ProfileDashboard() {
     }
   }
   // Mock user data
- const currentUser = useSelector((state: RootState) => state.user);
+  const currentUser = useSelector((state: RootState) => state.user)
 
-const user = {
-  name: currentUser.name,
-  email: currentUser.email,
-  avatar: currentUser.profilePicture,
-  walletAddress: currentUser.walletAddress,
-  joinDate: "March 2023", 
-  totalEvents: currentUser.eventsCreated.length,
-  totalTickets: currentUser.ticketsOwned.length,
-  eventsCreated: currentUser.eventsCreated.length,
-  totalAttended: 0, 
-};
+  const user = {
+    name: currentUser.name,
+    email: currentUser.email,
+    avatar: currentUser.profilePicture,
+    walletAddress: currentUser.walletAddress,
+    joinDate: "March 2023",
+    totalEvents: currentUser.eventsCreated.length,
+    totalTickets: currentUser.ticketsOwned.length,
+    eventsCreated: currentUser.eventsCreated.length,
+    totalAttended: 0,
+  }
 
   const formatDateTime = (isoString: string) => {
     try {
@@ -668,12 +668,43 @@ const user = {
           <div className="bg-gray-900 rounded-2xl border border-gray-700 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
               <h2 className="text-xl font-semibold text-white">Event Ticket</h2>
-              <button
-                onClick={closeTicketModal}
-                className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    // Create a download functionality for the ticket
+                    const ticketData = {
+                      eventTitle: selectedTicket?.title,
+                      eventDate: selectedTicket?.date,
+                      eventTime: selectedTicket?.time,
+                      location: selectedTicket?.location,
+                      userName: user.name,
+                      userWallet: user.walletAddress,
+                    }
+
+                    // Convert ticket data to JSON and download
+                    const dataStr = JSON.stringify(ticketData, null, 2)
+                    const dataBlob = new Blob([dataStr], { type: "application/json" })
+                    const url = URL.createObjectURL(dataBlob)
+                    const link = document.createElement("a")
+                    link.href = url
+                    link.download = `ticket-${selectedTicket?.title?.replace(/\s+/g, "-").toLowerCase()}.json`
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
+                  title="Download Ticket"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={closeTicketModal}
+                  className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <div className="p-6">
               {selectedTicket && (
@@ -794,6 +825,21 @@ const user = {
                       No Balance to Withdraw (Free Event)
                     </button>
                   )}
+                </div>
+
+                {/* Verify Attendee Section */}
+                <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                  <h4 className="text-lg font-semibold text-white mb-3">Event Management</h4>
+                  <button
+                    onClick={() => {
+                      closeManageModal()
+                      router.push(`/verify/${selectedEvent.id}`)
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center"
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    Verify Attendee
+                  </button>
                 </div>
 
                 {/* Action Buttons */}
