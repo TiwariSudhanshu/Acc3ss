@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { Html5Qrcode } from "html5-qrcode"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
@@ -9,37 +10,52 @@ import {
   Users,
   CheckCircle,
   XCircle,
-  Camera,
   User,
   Calendar,
   MapPin,
   Ticket,
   Filter,
   Download,
+  UserCheck,
+  UserX,
 } from "lucide-react"
 import { toast } from "sonner"
+import { getContract } from "@/contract/contract"
+
+interface TicketEntry {
+  ticketId: string
+  email: string
+  name: string
+  profilePicture: string
+  walletAddress: string
+  verified?: boolean
+  verifiedAt?: string
+  checkInTime?: string
+}
 
 interface Attendee {
-  id: string
-  name: string
   email: string
-  ticketId: string
-  verified: boolean
-  verifiedAt?: string
-  avatar?: string
-  ticketType: "VIP" | "General" | "Student"
-  checkInTime?: string
+  name: string
+  profilePicture: string
+  ticketsOwned: string[]
+  walletAddress: string
 }
 
 interface EventDetails {
   id: number
   title: string
-  image: string
+  banner: string
   date: string
   time: string
   location: string
-  organizer: string
-  totalAttendees: number
+  organizer: {
+    name: string
+    address: string
+  }
+  totalSupply: number
+  sold: number
+  category: string
+  status: string
 }
 
 export default function VerifyEventPage() {
@@ -48,104 +64,169 @@ export default function VerifyEventPage() {
   const eventId = params.id as string
 
   const [eventDetails, setEventDetails] = useState<EventDetails | null>(null)
-  const [attendees, setAttendees] = useState<Attendee[]>([])
-  const [filteredAttendees, setFilteredAttendees] = useState<Attendee[]>([])
+  const [ticketEntries, setTicketEntries] = useState<TicketEntry[]>([])
+  const [filteredTicketEntries, setFilteredTicketEntries] = useState<TicketEntry[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<"all" | "verified" | "pending">("all")
-  const [filterTicketType, setFilterTicketType] = useState<"all" | "VIP" | "General" | "Student">("all")
   const [isLoading, setIsLoading] = useState(true)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
-  const [verifyingTicket, setVerifyingTicket] = useState<string | null>(null)
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false)
+  const [selectedTicket, setSelectedTicket] = useState<TicketEntry | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [stats, setStats] = useState({
     total: 0,
     verified: 0,
     pending: 0,
   })
 
-  // Mock event data
-  const mockEventDetails: EventDetails = {
-    id: Number(eventId),
-    title: "Web3 Developer Conference 2024",
-    image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=400&fit=crop",
-    date: "March 15, 2024",
-    time: "9:00 AM",
-    location: "San Francisco Convention Center",
-    organizer: "Tech Events Inc.",
-    totalAttendees: 150,
+  const scannerRef = useRef<Html5Qrcode | null>(null)
+
+  useEffect(() => {
+    if (!isScannerOpen) {
+      if (scannerRef.current) {
+        scannerRef.current
+          .stop()
+          .then(() => scannerRef.current?.clear())
+          .catch((err) => console.error("Failed to stop scanner:", err))
+      }
+      return
+    }
+
+    const html5QrCode = new Html5Qrcode("qr-reader")
+    scannerRef.current = html5QrCode
+
+    Html5Qrcode.getCameras()
+      .then((devices) => {
+        if (devices && devices.length > 0) {
+          const cameraId = devices[0].id
+          html5QrCode
+            .start(
+              cameraId,
+              { fps: 10, qrbox: { width: 250, height: 250 } },
+              (decodedText: string, _decodedResult) => {
+                handleQRScan(decodedText)
+                setIsScannerOpen(false)
+                html5QrCode
+                  .stop()
+                  .then(() => html5QrCode.clear())
+                  .catch((err) => console.error("Failed to clear scanner:", err))
+              },
+              (errorMessage: string) => {
+                // console.warn("QR error:", errorMessage);
+              },
+            )
+            .catch((err) => console.error("Start camera error:", err))
+        }
+      })
+      .catch((err) => {
+        console.error("Camera permission error:", err)
+      })
+
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current
+          .stop()
+          .then(() => scannerRef.current?.clear())
+          .catch((err) => console.error("Cleanup error:", err))
+      }
+    }
+  }, [isScannerOpen])
+
+  // Get event data from localStorage
+  const getEventFromCache = () => {
+    try {
+      const cached = localStorage.getItem("events")
+      if (cached) {
+        const cachedEvents: EventDetails[] = JSON.parse(cached)
+        const event = cachedEvents.find((e) => e.id === Number(eventId))
+        if (event) {
+          setEventDetails(event)
+          return true
+        }
+      }
+    } catch (error) {
+      console.error("Error getting event from cache:", error)
+    }
+    return false
   }
 
-  // Generate mock attendees
-  const generateMockAttendees = (): Attendee[] => {
-    const names = [
-      "Alice Johnson",
-      "Bob Smith",
-      "Charlie Brown",
-      "Diana Prince",
-      "Ethan Hunt",
-      "Fiona Green",
-      "George Wilson",
-      "Hannah Davis",
-      "Ian Malcolm",
-      "Julia Roberts",
-      "Kevin Hart",
-      "Luna Lovegood",
-      "Mike Ross",
-      "Nina Patel",
-      "Oscar Wilde",
-      "Penny Lane",
-      "Quinn Fabray",
-      "Rachel Green",
-      "Sam Winchester",
-      "Tina Fey",
-      "Uma Thurman",
-      "Victor Hugo",
-      "Wendy Darling",
-      "Xavier Charles",
-      "Yara Greyjoy",
-      "Zoe Saldana",
-      "Aaron Paul",
-      "Bella Swan",
-      "Chris Evans",
-      "Daisy Johnson",
-    ]
+  const handleGetAttendees = async () => {
+    try {
+      const contract = await getContract()
+      const lastTicketId = await contract.nextTokenId()
+      const matchedTickets = []
 
-    const ticketTypes: ("VIP" | "General" | "Student")[] = ["VIP", "General", "Student"]
+      for (let i = 0; i < lastTicketId; i++) {
+        const thisEvent = await contract.tokenToEvent(i)
+        if (thisEvent.toString() === eventId.toString()) {
+          matchedTickets.push(i)
+        }
+      }
 
-    return names.map((name, i) => ({
-      id: `attendee-${i + 1}`,
-      name,
-      email: `${name.toLowerCase().replace(" ", ".")}@example.com`,
-      ticketId: `TKT-${eventId}-${String(i + 1).padStart(3, "0")}`,
-      verified: Math.random() > 0.6, // 40% already verified
-      verifiedAt: Math.random() > 0.6 ? new Date(Date.now() - Math.random() * 86400000).toISOString() : undefined,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-      ticketType: ticketTypes[Math.floor(Math.random() * ticketTypes.length)],
-      checkInTime:
-        Math.random() > 0.6 ? new Date(Date.now() - Math.random() * 3600000).toLocaleTimeString() : undefined,
-    }))
+      const res = await fetch("/api/getAttendees", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ticketIds: matchedTickets,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        // Transform attendees data to individual ticket entries
+        const ticketEntriesData: TicketEntry[] = []
+        data.attendees.forEach((attendee: Attendee) => {
+          attendee.ticketsOwned.forEach((ticketId: string) => {
+            ticketEntriesData.push({
+              ticketId,
+              email: attendee.email,
+              name: attendee.name,
+              profilePicture: attendee.profilePicture,
+              walletAddress: attendee.walletAddress,
+              verified: false,
+            })
+          })
+        })
+
+        setTicketEntries(ticketEntriesData)
+        setFilteredTicketEntries(ticketEntriesData)
+
+        // Update stats
+        setStats({
+          total: ticketEntriesData.length,
+          verified: 0,
+          pending: ticketEntriesData.length,
+        })
+      } else {
+        console.error("Error fetching attendees:", data.error)
+        toast.error("Failed to fetch attendees")
+      }
+    } catch (error) {
+      console.error("Error in handleGetAttendees:", error)
+      toast.error("Failed to fetch attendees")
+    }
   }
 
-  const applyFilters = (attendeeList: Attendee[]) => {
-    let filtered = attendeeList
+  const applyFilters = (ticketList: TicketEntry[]) => {
+    let filtered = ticketList
 
     // Apply search filter
     if (searchQuery.trim()) {
       filtered = filtered.filter(
-        (attendee) =>
-          attendee.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          attendee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          attendee.ticketId.toLowerCase().includes(searchQuery.toLowerCase()),
+        (ticket) =>
+          ticket.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          ticket.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          ticket.walletAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          ticket.ticketId.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     }
 
     // Apply status filter
     if (filterStatus !== "all") {
-      filtered = filtered.filter((attendee) => (filterStatus === "verified" ? attendee.verified : !attendee.verified))
-    }
-
-    // Apply ticket type filter
-    if (filterTicketType !== "all") {
-      filtered = filtered.filter((attendee) => attendee.ticketType === filterTicketType)
+      filtered = filtered.filter((ticket) => (filterStatus === "verified" ? ticket.verified : !ticket.verified))
     }
 
     return filtered
@@ -153,44 +234,70 @@ export default function VerifyEventPage() {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query)
-    const filtered = applyFilters(attendees)
-    setFilteredAttendees(filtered)
+    const filtered = applyFilters(ticketEntries)
+    setFilteredTicketEntries(filtered)
   }
 
   const handleStatusFilter = (status: "all" | "verified" | "pending") => {
     setFilterStatus(status)
-    const filtered = applyFilters(attendees)
-    setFilteredAttendees(filtered)
+    const filtered = applyFilters(ticketEntries)
+    setFilteredTicketEntries(filtered)
   }
 
-  const handleTicketTypeFilter = (type: "all" | "VIP" | "General" | "Student") => {
-    setFilterTicketType(type)
-    const filtered = applyFilters(attendees)
-    setFilteredAttendees(filtered)
+  const handleQRScan = async (data: string) => {
+    try {
+      const contract = await getContract()
+      // Parse QR code data (assuming it contains wallet address or ticket info)
+      const ticketData = JSON.parse(data)
+      const ticket = ticketEntries.find(
+        (t) => t.walletAddress === ticketData.walletAddress || t.ticketId === ticketData.ticketId,
+      )
+
+      if (ticket) {
+        const owner = await contract.ownerOf(ticket.ticketId)
+        if (owner.toLowerCase() === ticketData.walletAddress.toLowerCase()) {
+          // Open verification modal instead of just showing toast
+          setSelectedTicket(ticket)
+          setIsVerificationModalOpen(true)
+        } else {
+          toast.error("Ticket ownership verification failed!")
+        }
+      } else {
+        toast.error("Invalid ticket or ticket not found!")
+      }
+    } catch (error) {
+      toast.error("Invalid QR code format!")
+    }
+    setIsScannerOpen(false)
   }
 
-  const handleVerifyAttendee = async (attendeeId: string) => {
-    setVerifyingTicket(attendeeId)
+  const handleVerifyClick = (ticket: TicketEntry) => {
+    setSelectedTicket(ticket)
+    setIsVerificationModalOpen(true)
+  }
 
+  const handleGrantAccess = async () => {
+    if (!selectedTicket) return
+
+    setIsProcessing(true)
     try {
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 800))
 
-      const updatedAttendees = attendees.map((attendee) =>
-        attendee.id === attendeeId
+      const updatedTickets = ticketEntries.map((ticket) =>
+        ticket.ticketId === selectedTicket.ticketId
           ? {
-              ...attendee,
+              ...ticket,
               verified: true,
               verifiedAt: new Date().toISOString(),
               checkInTime: new Date().toLocaleTimeString(),
             }
-          : attendee,
+          : ticket,
       )
 
-      setAttendees(updatedAttendees)
-
-      const filtered = applyFilters(updatedAttendees)
-      setFilteredAttendees(filtered)
+      setTicketEntries(updatedTickets)
+      const filtered = applyFilters(updatedTickets)
+      setFilteredTicketEntries(filtered)
 
       // Update stats
       setStats((prev) => ({
@@ -199,87 +306,34 @@ export default function VerifyEventPage() {
         pending: prev.pending - 1,
       }))
 
-      toast.success("Attendee verified successfully!")
+      toast.success("Access granted successfully!")
+      setIsVerificationModalOpen(false)
+      setSelectedTicket(null)
     } catch (error) {
-      console.error("Error verifying attendee:", error)
-      toast.error("Failed to verify attendee")
+      console.error("Error granting access:", error)
+      toast.error("Failed to grant access")
     } finally {
-      setVerifyingTicket(null)
+      setIsProcessing(false)
     }
   }
 
-  const handleUnverifyAttendee = async (attendeeId: string) => {
-    setVerifyingTicket(attendeeId)
-
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 800))
-
-      const updatedAttendees = attendees.map((attendee) =>
-        attendee.id === attendeeId
-          ? {
-              ...attendee,
-              verified: false,
-              verifiedAt: undefined,
-              checkInTime: undefined,
-            }
-          : attendee,
-      )
-
-      setAttendees(updatedAttendees)
-
-      const filtered = applyFilters(updatedAttendees)
-      setFilteredAttendees(filtered)
-
-      // Update stats
-      setStats((prev) => ({
-        ...prev,
-        verified: prev.verified - 1,
-        pending: prev.pending + 1,
-      }))
-
-      toast.success("Attendee unverified successfully!")
-    } catch (error) {
-      console.error("Error unverifying attendee:", error)
-      toast.error("Failed to unverify attendee")
-    } finally {
-      setVerifyingTicket(null)
-    }
-  }
-
-  const handleQRScan = (data: string) => {
-    try {
-      // Parse QR code data (assuming it contains ticket info)
-      const ticketData = JSON.parse(data)
-      const attendee = attendees.find((a) => a.ticketId === ticketData.ticketId)
-
-      if (attendee) {
-        if (!attendee.verified) {
-          handleVerifyAttendee(attendee.id)
-        } else {
-          toast.info("This attendee is already verified!")
-        }
-      } else {
-        toast.error("Invalid ticket or attendee not found!")
-      }
-    } catch (error) {
-      toast.error("Invalid QR code format!")
-    }
-
-    setIsScannerOpen(false)
+  const handleRejectAccess = () => {
+    toast.info("Access rejected")
+    setIsVerificationModalOpen(false)
+    setSelectedTicket(null)
   }
 
   const exportAttendees = () => {
     const csvContent = [
-      ["Name", "Email", "Ticket ID", "Ticket Type", "Status", "Check-in Time"].join(","),
-      ...filteredAttendees.map((attendee) =>
+      ["Name", "Email", "Wallet Address", "Ticket ID", "Status", "Check-in Time"].join(","),
+      ...filteredTicketEntries.map((ticket) =>
         [
-          attendee.name,
-          attendee.email,
-          attendee.ticketId,
-          attendee.ticketType,
-          attendee.verified ? "Verified" : "Pending",
-          attendee.checkInTime || "Not checked in",
+          ticket.name,
+          ticket.email,
+          ticket.walletAddress,
+          ticket.ticketId,
+          ticket.verified ? "Verified" : "Pending",
+          ticket.checkInTime || "Not checked in",
         ].join(","),
       ),
     ].join("\n")
@@ -288,46 +342,33 @@ export default function VerifyEventPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `${eventDetails?.title.replace(/\s+/g, "-").toLowerCase()}-attendees.csv`
+    link.download = `${eventDetails?.title.replace(/\s+/g, "-").toLowerCase()}-tickets.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-
-    toast.success("Attendee list exported successfully!")
-  }
-
-  const getTicketTypeColor = (type: string) => {
-    switch (type) {
-      case "VIP":
-        return "bg-purple-500/20 text-purple-400 border-purple-500/30"
-      case "General":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-      case "Student":
-        return "bg-green-500/20 text-green-400 border-green-500/30"
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-    }
+    toast.success("Ticket list exported successfully!")
   }
 
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setEventDetails(mockEventDetails)
-      const mockAttendees = generateMockAttendees()
-      setAttendees(mockAttendees)
-      setFilteredAttendees(mockAttendees)
+    const loadData = async () => {
+      setIsLoading(true)
+      // Get event data from localStorage
+      const eventFound = getEventFromCache()
+      if (!eventFound) {
+        toast.error("Event not found in cache")
+        setIsLoading(false)
+        return
+      }
 
-      // Calculate stats
-      const verified = mockAttendees.filter((a) => a.verified).length
-      setStats({
-        total: mockAttendees.length,
-        verified,
-        pending: mockAttendees.length - verified,
-      })
-
+      // Get attendees data
+      await handleGetAttendees()
       setIsLoading(false)
-    }, 1000)
+    }
+
+    if (eventId) {
+      loadData()
+    }
   }, [eventId])
 
   if (isLoading) {
@@ -347,7 +388,7 @@ export default function VerifyEventPage() {
         <div className="text-center">
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white mb-2">Event Not Found</h1>
-          <p className="text-gray-400 mb-4">The event you're looking for doesn't exist.</p>
+          <p className="text-gray-400 mb-4">The event you're looking for doesn't exist in cache.</p>
           <button
             onClick={() => router.back()}
             className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors"
@@ -376,7 +417,6 @@ export default function VerifyEventPage() {
               <p className="text-gray-300">{eventDetails.title}</p>
             </div>
           </div>
-
           <div className="flex items-center space-x-3">
             <button
               onClick={exportAttendees}
@@ -399,7 +439,7 @@ export default function VerifyEventPage() {
         <div className="bg-gray-800/50 rounded-2xl border border-gray-700 p-6 mb-8">
           <div className="flex items-start space-x-6">
             <img
-              src={eventDetails.image || "/placeholder.svg"}
+              src={eventDetails.banner || "/placeholder.svg"}
               alt={eventDetails.title}
               className="w-32 h-32 rounded-xl object-cover"
             />
@@ -416,7 +456,7 @@ export default function VerifyEventPage() {
                 </div>
                 <div className="flex items-center text-gray-300">
                   <User className="w-4 h-4 mr-2 text-orange-400" />
-                  {eventDetails.organizer}
+                  {eventDetails.organizer.name}
                 </div>
               </div>
             </div>
@@ -434,7 +474,6 @@ export default function VerifyEventPage() {
               <Users className="w-8 h-8 text-blue-400" />
             </div>
           </div>
-
           <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -444,7 +483,6 @@ export default function VerifyEventPage() {
               <CheckCircle className="w-8 h-8 text-green-400" />
             </div>
           </div>
-
           <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -464,7 +502,7 @@ export default function VerifyEventPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search by name, email, or ticket ID..."
+                placeholder="Search by name, email, wallet address, or ticket ID..."
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg pl-10 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -477,7 +515,6 @@ export default function VerifyEventPage() {
                 <Filter className="w-4 h-4 text-gray-400" />
                 <span className="text-gray-400 text-sm">Filters:</span>
               </div>
-
               {/* Status Filter */}
               <select
                 value={filterStatus}
@@ -488,27 +525,13 @@ export default function VerifyEventPage() {
                 <option value="verified">Verified</option>
                 <option value="pending">Pending</option>
               </select>
-
-              {/* Ticket Type Filter */}
-              <select
-                value={filterTicketType}
-                onChange={(e) => handleTicketTypeFilter(e.target.value as "all" | "VIP" | "General" | "Student")}
-                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="all">All Types</option>
-                <option value="VIP">VIP</option>
-                <option value="General">General</option>
-                <option value="Student">Student</option>
-              </select>
-
               {/* Clear Filters */}
-              {(searchQuery || filterStatus !== "all" || filterTicketType !== "all") && (
+              {(searchQuery || filterStatus !== "all") && (
                 <button
                   onClick={() => {
                     setSearchQuery("")
                     setFilterStatus("all")
-                    setFilterTicketType("all")
-                    setFilteredAttendees(attendees)
+                    setFilteredTicketEntries(ticketEntries)
                   }}
                   className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm transition-colors"
                 >
@@ -523,78 +546,78 @@ export default function VerifyEventPage() {
         <div className="bg-gray-800/50 rounded-xl border border-gray-700">
           <div className="p-6 border-b border-gray-700">
             <h3 className="text-xl font-semibold text-white flex items-center">
-              <Users className="w-5 h-5 mr-2 text-orange-400" />
-              Attendees ({filteredAttendees.length} of {attendees.length})
+              <Ticket className="w-5 h-5 mr-2 text-orange-400" />
+              Tickets ({filteredTicketEntries.length} of {ticketEntries.length})
             </h3>
           </div>
-
           <div className="divide-y divide-gray-700">
-            {filteredAttendees.length === 0 ? (
+            {filteredTicketEntries.length === 0 ? (
               <div className="p-8 text-center">
-                <Users className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">No attendees found matching your criteria</p>
+                <Ticket className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No tickets found matching your criteria</p>
               </div>
             ) : (
-              filteredAttendees.map((attendee) => (
-                <div key={attendee.id} className="p-6 hover:bg-gray-700/30 transition-colors">
+              filteredTicketEntries.map((ticket) => (
+                <div key={ticket.ticketId} className="p-6 hover:bg-gray-700/30 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <img
-                        src={attendee.avatar || "/placeholder.svg"}
-                        alt={attendee.name}
-                        className="w-12 h-12 rounded-full object-cover"
+                        src={ticket.profilePicture || "/placeholder.svg"}
+                        alt={ticket.name}
+                        className="w-14 h-14 rounded-full object-cover border-2 border-gray-600"
                       />
-                      <div>
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h4 className="font-semibold text-white">{attendee.name}</h4>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium border ${getTicketTypeColor(attendee.ticketType)}`}
-                          >
-                            {attendee.ticketType}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h4 className="font-semibold text-white text-lg">{ticket.name}</h4>
+                          <span className="px-3 py-1 rounded-full text-xs font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">
+                            Ticket #{ticket.ticketId}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-400">{attendee.email}</p>
-                        <p className="text-xs text-gray-500">Ticket: {attendee.ticketId}</p>
-                        {attendee.checkInTime && (
-                          <p className="text-xs text-green-400">Checked in at {attendee.checkInTime}</p>
-                        )}
+                        <div className="space-y-1">
+                          <p className="text-sm text-gray-300 flex items-center">
+                            <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                            {ticket.email}
+                          </p>
+                          <p className="text-xs text-gray-400 flex items-center">
+                            <span className="w-2 h-2 bg-orange-400 rounded-full mr-2"></span>
+                            Wallet: {ticket.walletAddress.slice(0, 8)}...{ticket.walletAddress.slice(-6)}
+                          </p>
+                          {ticket.checkInTime && (
+                            <p className="text-xs text-green-400 flex items-center">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Checked in at {ticket.checkInTime}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex items-center space-x-4">
-                      {attendee.verified ? (
+                      {ticket.verified ? (
                         <div className="flex items-center space-x-3">
                           <div className="text-right">
-                            <div className="flex items-center text-green-400 text-sm">
+                            <div className="flex items-center text-green-400 text-sm font-medium">
                               <CheckCircle className="w-4 h-4 mr-1" />
                               Verified
                             </div>
-                            {attendee.verifiedAt && (
-                              <p className="text-xs text-gray-500">{new Date(attendee.verifiedAt).toLocaleString()}</p>
+                            {ticket.verifiedAt && (
+                              <p className="text-xs text-gray-500">{new Date(ticket.verifiedAt).toLocaleString()}</p>
                             )}
                           </div>
-                          <button
-                            onClick={() => handleUnverifyAttendee(attendee.id)}
-                            disabled={verifyingTicket === attendee.id}
-                            className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                          >
-                            {verifyingTicket === attendee.id ? "Processing..." : "Unverify"}
-                          </button>
                         </div>
                       ) : (
                         <div className="flex items-center space-x-3">
                           <div className="text-right">
-                            <div className="flex items-center text-orange-400 text-sm">
+                            <div className="flex items-center text-orange-400 text-sm font-medium">
                               <XCircle className="w-4 h-4 mr-1" />
                               Pending
                             </div>
                           </div>
                           <button
-                            onClick={() => handleVerifyAttendee(attendee.id)}
-                            disabled={verifyingTicket === attendee.id}
-                            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                            onClick={() => handleVerifyClick(ticket)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg"
                           >
-                            {verifyingTicket === attendee.id ? "Processing..." : "Verify"}
+                            Verify
                           </button>
                         </div>
                       )}
@@ -620,39 +643,16 @@ export default function VerifyEventPage() {
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6">
               <div className="bg-gray-800 rounded-lg p-8 text-center">
                 <QrCode className="w-16 h-16 text-orange-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-white mb-2">QR Scanner</h3>
                 <p className="text-gray-400 mb-4">Position the QR code within the frame to scan</p>
-
-                {/* Mock Scanner Interface */}
+                {/* Actual QR scanner will mount here */}
                 <div className="bg-gray-700 rounded-lg p-4 mb-4">
-                  <div className="aspect-square bg-gray-600 rounded-lg flex items-center justify-center">
-                    <Camera className="w-12 h-12 text-gray-400" />
-                  </div>
+                  <div id="qr-reader" className="aspect-square bg-gray-600 rounded-lg" />
                 </div>
-
                 <div className="flex space-x-3">
-                  <button
-                    onClick={() => {
-                      // Mock successful scan
-                      const unverifiedAttendee = filteredAttendees.find((a) => !a.verified)
-                      if (unverifiedAttendee) {
-                        const mockTicketData = {
-                          ticketId: unverifiedAttendee.ticketId,
-                        }
-                        handleQRScan(JSON.stringify(mockTicketData))
-                      } else {
-                        toast.info("All visible attendees are already verified!")
-                        setIsScannerOpen(false)
-                      }
-                    }}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Mock Scan Success
-                  </button>
                   <button
                     onClick={() => setIsScannerOpen(false)}
                     className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg transition-colors"
@@ -660,6 +660,70 @@ export default function VerifyEventPage() {
                     Cancel
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Modal */}
+      {isVerificationModalOpen && selectedTicket && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-700 max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <h2 className="text-xl font-semibold text-white">Verify Attendee</h2>
+              <button
+                onClick={() => setIsVerificationModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="text-center mb-6">
+                <img
+                  src={selectedTicket.profilePicture || "/placeholder.svg"}
+                  alt={selectedTicket.name}
+                  className="w-20 h-20 rounded-full object-cover border-2 border-gray-600 mx-auto mb-4"
+                />
+                <h3 className="text-xl font-semibold text-white mb-2">{selectedTicket.name}</h3>
+                <p className="text-gray-400 text-sm mb-1">{selectedTicket.email}</p>
+                <div className="flex items-center justify-center space-x-2 mb-4">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">
+                    Ticket #{selectedTicket.ticketId}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Wallet: {selectedTicket.walletAddress.slice(0, 12)}...{selectedTicket.walletAddress.slice(-8)}
+                </p>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleRejectAccess}
+                  disabled={isProcessing}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  <UserX className="w-4 h-4 mr-1" />
+                  Reject
+                </button>
+                <button
+                  onClick={handleGrantAccess}
+                  disabled={isProcessing}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center"
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="w-5 h-5 mr-2" />
+                      Grant Access
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
