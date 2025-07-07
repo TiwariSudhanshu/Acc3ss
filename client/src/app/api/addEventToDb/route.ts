@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
             { $addToSet: { eventsCreated: eventId } },
             { new: true, upsert: true }
         );
-        return new NextResponse("Event added to user successfully", { status: 200 });
+        return NextResponse.json({ message: "Event added to user successfully"}, { status: 200 });
 
     } catch (error) {
         console.error("Error in POST request:", error);

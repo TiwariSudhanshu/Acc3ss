@@ -1,115 +1,125 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Upload, Calendar, Tag, Settings, Users, Plus, X, FileText } from "lucide-react"
-import { toast } from "sonner"
-import { getContract } from "@/contract/contract"
-import { useAccount } from "wagmi"
-import { parseEther } from "ethers"
+import { useState } from "react";
+import {
+  Upload,
+  Calendar,
+  Tag,
+  Settings,
+  Users,
+  Plus,
+  X,
+  FileText,
+} from "lucide-react";
+import { toast } from "sonner";
+import { getContract } from "@/contract/contract";
+import { useAccount } from "wagmi";
+import { parseEther } from "ethers";
 import { useAppDispatch } from "@/store/hook";
-import  {addEventCreated} from "@/store/userSlice"; 
+import { addEventCreated } from "@/store/userSlice";
 
 interface Speaker {
-  id: string
-  name: string
-  image: File | null
-  description: string
-  email: string
+  id: string;
+  name: string;
+  image: File | null;
+  description: string;
+  email: string;
 }
 
 interface EventMetadata {
-  eventName: string
-  description: string
-  category: string
-  bannerImage: File | null
-  location: string
-  startDateTime: string
-  endDateTime: string
-  speakers: Speaker[]
-  organizedBy: "solo" | "community"
-  communityName?: string
-  requirementsToAttend: string
-  whatsIncluded: string
-  agenda: string
+  eventName: string;
+  description: string;
+  category: string;
+  bannerImage: File | null;
+  location: string;
+  startDateTime: string;
+  endDateTime: string;
+  speakers: Speaker[];
+  organizedBy: "solo" | "community";
+  communityName?: string;
+  requirementsToAttend: string;
+  whatsIncluded: string;
+  agenda: string;
 }
 
 interface OnchainData {
-  eventName: string
-  ticketName: string
-  priceInETH: string
-  maxTicketsAvailable: number
-  maxPerWallet: number
-  saleStartDate: string
-  network: string
-  royaltyPercentage: string
-  isFreeEvent: boolean
+  eventName: string;
+  ticketName: string;
+  priceInETH: string;
+  maxTicketsAvailable: number;
+  maxPerWallet: number;
+  saleStartDate: string;
+  network: string;
+  royaltyPercentage: string;
+  isFreeEvent: boolean;
 }
 
 export default function CreateEventForm() {
   // Form state variables
-  const [eventName, setEventName] = useState("")
-  const [category, setCategory] = useState("")
-  const [description, setDescription] = useState("")
-  const [bannerImage, setBannerImage] = useState<File | null>(null)
-  const [bannerPreview, setBannerPreview] = useState<string | null>(null)
-  const [location, setLocation] = useState("")
-  const [startDateTime, setStartDateTime] = useState("")
-  const [endDateTime, setEndDateTime] = useState("")
-  const [requirementsToAttend, setRequirementsToAttend] = useState("")
-  const [whatsIncluded, setWhatsIncluded] = useState("")
-  const [agenda, setAgenda] = useState("")
-  const [ticketName, setTicketName] = useState("")
-  const [priceInETH, setPriceInETH] = useState("")
-  const [maxTicketsAvailable, setMaxTicketsAvailable] = useState<number>(0)
-  const [maxPerWallet, setMaxPerWallet] = useState<number>(0)
-  const [saleStartDate, setSaleStartDate] = useState("")
-  const [network, setNetwork] = useState("Ethereum Mainnet")
-  const [royaltyPercentage, setRoyaltyPercentage] = useState("")
+  const [eventName, setEventName] = useState("");
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [bannerImage, setBannerImage] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [location, setLocation] = useState("");
+  const [startDateTime, setStartDateTime] = useState("");
+  const [endDateTime, setEndDateTime] = useState("");
+  const [requirementsToAttend, setRequirementsToAttend] = useState("");
+  const [whatsIncluded, setWhatsIncluded] = useState("");
+  const [agenda, setAgenda] = useState("");
+  const [ticketName, setTicketName] = useState("");
+  const [priceInETH, setPriceInETH] = useState("");
+  const [maxTicketsAvailable, setMaxTicketsAvailable] = useState<number>(0);
+  const [maxPerWallet, setMaxPerWallet] = useState<number>(0);
+  const [saleStartDate, setSaleStartDate] = useState("");
+  const [network, setNetwork] = useState("Ethereum Mainnet");
+  const [royaltyPercentage, setRoyaltyPercentage] = useState("");
 
-  const [speakers, setSpeakers] = useState<Speaker[]>([])
-  const [speakerPreviews, setSpeakerPreviews] = useState<Record<string, string>>({})
-  const [organizedBy, setOrganizedBy] = useState<"solo" | "community">("solo")
-  const [communityName, setCommunityName] = useState("")
-  const [isFreeEvent, setIsFreeEvent] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  const [speakerPreviews, setSpeakerPreviews] = useState<
+    Record<string, string>
+  >({});
+  const [organizedBy, setOrganizedBy] = useState<"solo" | "community">("solo");
+  const [communityName, setCommunityName] = useState("");
+  const [isFreeEvent, setIsFreeEvent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-    const dispatch = useAppDispatch();
-
+  const dispatch = useAppDispatch();
 
   // Handle banner image upload with preview
   const handleBannerUpload = (file: File | null) => {
-    setBannerImage(file)
+    setBannerImage(file);
     if (file) {
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = (e) => {
-        setBannerPreview(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
+        setBannerPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     } else {
-      setBannerPreview(null)
+      setBannerPreview(null);
     }
-  }
+  };
 
   // Handle speaker image upload with preview
   const handleSpeakerImageUpload = (speakerId: string, file: File | null) => {
-    updateSpeaker(speakerId, "image", file)
+    updateSpeaker(speakerId, "image", file);
     if (file) {
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = (e) => {
         setSpeakerPreviews((prev) => ({
           ...prev,
           [speakerId]: e.target?.result as string,
-        }))
-      }
-      reader.readAsDataURL(file)
+        }));
+      };
+      reader.readAsDataURL(file);
     } else {
       setSpeakerPreviews((prev) => {
-        const newPreviews = { ...prev }
-        delete newPreviews[speakerId]
-        return newPreviews
-      })
+        const newPreviews = { ...prev };
+        delete newPreviews[speakerId];
+        return newPreviews;
+      });
     }
-  }
+  };
 
   const addSpeaker = () => {
     const newSpeaker: Speaker = {
@@ -118,75 +128,83 @@ export default function CreateEventForm() {
       image: null,
       description: "",
       email: "",
-    }
-    setSpeakers([...speakers, newSpeaker])
-  }
+    };
+    setSpeakers([...speakers, newSpeaker]);
+  };
 
   const removeSpeaker = (id: string) => {
-    setSpeakers(speakers.filter((speaker) => speaker.id !== id))
+    setSpeakers(speakers.filter((speaker) => speaker.id !== id));
     // Remove preview for deleted speaker
     setSpeakerPreviews((prev) => {
-      const newPreviews = { ...prev }
-      delete newPreviews[id]
-      return newPreviews
-    })
-  }
+      const newPreviews = { ...prev };
+      delete newPreviews[id];
+      return newPreviews;
+    });
+  };
 
-  const updateSpeaker = (id: string, field: keyof Speaker, value: string | File | null) => {
-    setSpeakers(speakers.map((speaker) => (speaker.id === id ? { ...speaker, [field]: value } : speaker)))
-  }
+  const updateSpeaker = (
+    id: string,
+    field: keyof Speaker,
+    value: string | File | null
+  ) => {
+    setSpeakers(
+      speakers.map((speaker) =>
+        speaker.id === id ? { ...speaker, [field]: value } : speaker
+      )
+    );
+  };
 
   const validateForm = (): boolean => {
     if (!eventName.trim()) {
-      toast.error("Event name is required")
-      return false
+      toast.error("Event name is required");
+      return false;
     }
     if (!category) {
-      toast.error("Please select a category")
-      return false
+      toast.error("Please select a category");
+      return false;
     }
     if (!description.trim()) {
-      toast.error("Event description is required")
-      return false
+      toast.error("Event description is required");
+      return false;
     }
     if (!location.trim()) {
-      toast.error("Event location is required")
-      return false
+      toast.error("Event location is required");
+      return false;
     }
     if (!startDateTime) {
-      toast.error("Start date and time is required")
-      return false
+      toast.error("Start date and time is required");
+      return false;
     }
     if (!endDateTime) {
-      toast.error("End date and time is required")
-      return false
+      toast.error("End date and time is required");
+      return false;
     }
     if (new Date(startDateTime) >= new Date(endDateTime)) {
-      toast.error("End date must be after start date")
-      return false
+      toast.error("End date must be after start date");
+      return false;
     }
     if (!ticketName.trim()) {
-      toast.error("Ticket name is required")
-      return false
+      toast.error("Ticket name is required");
+      return false;
     }
     if (!isFreeEvent && (!priceInETH || Number.parseFloat(priceInETH) <= 0)) {
-      toast.error("Please enter a valid ticket price")
-      return false
+      toast.error("Please enter a valid ticket price");
+      return false;
     }
     if (maxTicketsAvailable <= 0) {
-      toast.error("Please enter a valid number of tickets")
-      return false
+      toast.error("Please enter a valid number of tickets");
+      return false;
     }
     if (maxPerWallet <= 0) {
-      toast.error("Please enter a valid max tickets per wallet")
-      return false
+      toast.error("Please enter a valid max tickets per wallet");
+      return false;
     }
     if (!saleStartDate) {
-      toast.error("Sale start date is required")
-      return false
+      toast.error("Sale start date is required");
+      return false;
     }
-    return true
-  }
+    return true;
+  };
 
   const handleSubmit = () => {
     // Collect actual form data into metadata structure
@@ -204,7 +222,7 @@ export default function CreateEventForm() {
       requirementsToAttend,
       whatsIncluded,
       agenda,
-    }
+    };
 
     // Collect actual form data into onchain data structure
     const onchainData: OnchainData = {
@@ -217,37 +235,36 @@ export default function CreateEventForm() {
       network,
       royaltyPercentage: isFreeEvent ? "0" : royaltyPercentage,
       isFreeEvent,
-    }
+    };
 
-
-    return { metadata, onchainData }
-  }
+    return { metadata, onchainData };
+  };
 
   const addDataToIPFS = async (data: EventMetadata): Promise<string> => {
     try {
-      const formData = new FormData()
+      const formData = new FormData();
 
       // Add banner image if exists
       if (data.bannerImage) {
-        formData.append("bannerImage", data.bannerImage)
+        formData.append("bannerImage", data.bannerImage);
       }
 
       // Add basic event data
-      formData.append("eventName", data.eventName)
-      formData.append("description", data.description)
-      formData.append("category", data.category)
-      formData.append("location", data.location)
-      formData.append("startDateTime", data.startDateTime)
-      formData.append("endDateTime", data.endDateTime)
-      formData.append("organizedBy", data.organizedBy)
+      formData.append("eventName", data.eventName);
+      formData.append("description", data.description);
+      formData.append("category", data.category);
+      formData.append("location", data.location);
+      formData.append("startDateTime", data.startDateTime);
+      formData.append("endDateTime", data.endDateTime);
+      formData.append("organizedBy", data.organizedBy);
 
       if (data.organizedBy === "community" && data.communityName) {
-        formData.append("communityName", data.communityName)
+        formData.append("communityName", data.communityName);
       }
 
-      formData.append("requirementsToAttend", data.requirementsToAttend)
-      formData.append("whatsIncluded", data.whatsIncluded)
-      formData.append("agenda", data.agenda)
+      formData.append("requirementsToAttend", data.requirementsToAttend);
+      formData.append("whatsIncluded", data.whatsIncluded);
+      formData.append("agenda", data.agenda);
 
       // Handle speakers data
       const speakersData = data.speakers.map((speaker) => ({
@@ -256,110 +273,139 @@ export default function CreateEventForm() {
         description: speaker.description,
         email: speaker.email,
         hasImage: !!speaker.image,
-      }))
-      formData.append("speakers", JSON.stringify(speakersData))
+      }));
+      formData.append("speakers", JSON.stringify(speakersData));
 
       // Add speaker images separately
       data.speakers.forEach((speaker, index) => {
         if (speaker.image) {
-          formData.append(`speakerImage_${index}`, speaker.image)
+          formData.append(`speakerImage_${index}`, speaker.image);
         }
-      })
+      });
 
       // Call your API endpoint to upload metadata
       const response = await fetch("/api/uploadMetadata", {
         method: "POST",
         body: formData,
-      })
+      });
 
       if (!response.ok) {
-        throw new Error(`Failed to upload metadata: ${response.statusText}`)
+        throw new Error(`Failed to upload metadata: ${response.statusText}`);
       }
 
-      const result = await response.json()
-      console.log("Metadata uploaded successfully:", result.metadataUrl)
-      return result.metadataUrl
+      const result = await response.json();
+      console.log("Metadata uploaded successfully:", result.metadataUrl);
+      return result.metadataUrl;
     } catch (error) {
-      console.error("Error uploading data to IPFS:", error)
-      throw new Error("Failed to upload data to IPFS")
+      console.error("Error uploading data to IPFS:", error);
+      throw new Error("Failed to upload data to IPFS");
     }
-  }
+  };
 
- const createEvent = async (metadataUrl: string) => {
-  const priceInWei = isFreeEvent ? "0" : parseEther(priceInETH).toString()
-  const contract = await getContract()
-  const tx = await contract.createEvent(
-    eventName,
-    priceInWei,
-    maxTicketsAvailable,
-    metadataUrl
-  )
-  const receipt = await tx.wait()
-  const eventLog = receipt.events?.find((e: any) => e.event === "EventCreated")
-  const eventId = eventLog?.args?.eventId.toNumber()
-  if (!eventId && eventId !== 0) throw new Error("Event ID not found from logs")
-  return eventId
-}
-const { address } = useAccount();
-const addEventIdToDb = async (eventId: number) => {
-  const res = await fetch("/api/addEventToDb", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      eventId,
-      walletAddress: address,
-    }),
-  })
-  dispatch(addEventCreated(eventId.toString()));
 
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.message || "Failed to add event to DB")
-}
 
-const handleOperations = async () => {
-  if (!validateForm()) return
-  setLoading(true)
-  const loadingToast = toast.loading("Processing event creation...")
-
+const createEvent = async (metadataUrl: string): Promise<number> => {
   try {
-    const { metadata } = handleSubmit()
-    toast.loading("Uploading metadata to IPFS...", { id: loadingToast })
-    const metadataUrl = await addDataToIPFS(metadata)
-    toast.loading("Creating event on blockchain...", { id: loadingToast })
-    const eventId = await createEvent(metadataUrl)
-    await addEventIdToDb(eventId)
-    toast.success("Event created successfully!", { id: loadingToast })
+    const contract = await getContract();
 
-    setEventName("")
-    setCategory("")
-    setDescription("")
-    setBannerImage(null)
-    setBannerPreview(null)
-    setLocation("")
-    setStartDateTime("")
-    setEndDateTime("")
-    setRequirementsToAttend("")
-    setWhatsIncluded("")
-    setAgenda("")
-    setTicketName("")
-    setPriceInETH("")
-    setMaxTicketsAvailable(0)
-    setMaxPerWallet(0)
-    setSaleStartDate("")
-    setNetwork("Ethereum Mainnet")
-    setRoyaltyPercentage("")
-    setSpeakers([])
-    setSpeakerPreviews({})
-    setOrganizedBy("solo")
-    setCommunityName("")
-    setIsFreeEvent(false)
+    const priceInWei = isFreeEvent ? "0" : parseEther(priceInETH).toString();
+
+
+    const tx = await contract.createEvent(
+      eventName,
+      priceInWei,
+      maxTicketsAvailable,
+      metadataUrl
+    );
+
+
+    const receipt = await tx.wait();
+
+
+    let eventId: number | null = null;
+
+    for (const log of receipt.logs) {
+      if (log.fragment?.name === "EventCreated") {
+        eventId = Number(log.args?.[0]);
+        break;
+      }
+    }
+
+    if (eventId === null) {
+      console.error("❌ EventCreated log not found or eventId missing");
+      throw new Error("EventCreated log not found");
+    }
+
+    return eventId;
   } catch (error) {
-    toast.error(error instanceof Error ? error.message : "An error occurred", { id: loadingToast })
-  } finally {
-    setLoading(false)
+    console.error("❌ createEvent error:", error);
+    throw error;
   }
-}
+};
 
+
+  const { address } = useAccount();
+  const addEventIdToDb = async (eventId: number) => {
+    const res = await fetch("/api/addEventToDb", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventId,
+        walletAddress: address,
+      }),
+    });
+    dispatch(addEventCreated(eventId.toString()));
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to add event to DB");
+  };
+
+  const handleOperations = async () => {
+    if (!validateForm()) return;
+    setLoading(true);
+    const loadingToast = toast.loading("Processing event creation...");
+
+    try {
+      const { metadata } = handleSubmit();
+      toast.loading("Uploading metadata to IPFS...", { id: loadingToast });
+      const metadataUrl = await addDataToIPFS(metadata);
+      toast.loading("Creating event on blockchain...", { id: loadingToast });
+      const eventId = await createEvent(metadataUrl);
+      await addEventIdToDb(eventId);
+      toast.success("Event created successfully!", { id: loadingToast });
+
+      setEventName("");
+      setCategory("");
+      setDescription("");
+      setBannerImage(null);
+      setBannerPreview(null);
+      setLocation("");
+      setStartDateTime("");
+      setEndDateTime("");
+      setRequirementsToAttend("");
+      setWhatsIncluded("");
+      setAgenda("");
+      setTicketName("");
+      setPriceInETH("");
+      setMaxTicketsAvailable(0);
+      setMaxPerWallet(0);
+      setSaleStartDate("");
+      setNetwork("Ethereum Mainnet");
+      setRoyaltyPercentage("");
+      setSpeakers([]);
+      setSpeakerPreviews({});
+      setOrganizedBy("solo");
+      setCommunityName("");
+      setIsFreeEvent(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "An error occurred",
+        { id: loadingToast }
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 py-12">
@@ -368,7 +414,9 @@ const handleOperations = async () => {
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
             Create Your Event
           </h1>
-          <p className="text-xl text-gray-300">Launch your Web3 event with NFT-based tickets</p>
+          <p className="text-xl text-gray-300">
+            Launch your Web3 event with NFT-based tickets
+          </p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-16">
@@ -398,18 +446,26 @@ const handleOperations = async () => {
                       </button>
                     </div>
                   </div>
-                  <p className="text-green-400 text-sm">Selected: {bannerImage?.name}</p>
+                  <p className="text-green-400 text-sm">
+                    Selected: {bannerImage?.name}
+                  </p>
                 </div>
               ) : (
                 <div className="border-2 border-dashed border-gray-600 rounded-2xl p-16 text-center hover:border-orange-500 transition-colors">
                   <Upload className="w-16 h-16 mx-auto mb-6 text-gray-400" />
-                  <p className="text-gray-300 mb-3 text-lg">Drop your banner image here, or click to browse</p>
-                  <p className="text-sm text-gray-500 mb-6">Recommended: 1920x1080px, JPG or PNG</p>
+                  <p className="text-gray-300 mb-3 text-lg">
+                    Drop your banner image here, or click to browse
+                  </p>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Recommended: 1920x1080px, JPG or PNG
+                  </p>
                   <input
                     type="file"
                     className="hidden"
                     accept="image/*"
-                    onChange={(e) => handleBannerUpload(e.target.files?.[0] || null)}
+                    onChange={(e) =>
+                      handleBannerUpload(e.target.files?.[0] || null)
+                    }
                     id="banner-upload"
                   />
                   <label
@@ -424,10 +480,14 @@ const handleOperations = async () => {
 
             {/* Basic Information */}
             <div className="bg-gray-800/30 rounded-3xl p-10 border border-gray-700/50">
-              <h2 className="text-2xl font-bold mb-8 text-white">Basic Information</h2>
+              <h2 className="text-2xl font-bold mb-8 text-white">
+                Basic Information
+              </h2>
               <div className="space-y-8">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Event Name *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Event Name *
+                  </label>
                   <input
                     type="text"
                     value={eventName}
@@ -438,7 +498,9 @@ const handleOperations = async () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Category *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Category *
+                  </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
@@ -459,7 +521,9 @@ const handleOperations = async () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Description *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Description *
+                  </label>
                   <textarea
                     rows={5}
                     value={description}
@@ -496,9 +560,14 @@ const handleOperations = async () => {
               ) : (
                 <div className="space-y-6">
                   {speakers.map((speaker) => (
-                    <div key={speaker.id} className="bg-gray-700/30 rounded-2xl p-6 border border-gray-600/50">
+                    <div
+                      key={speaker.id}
+                      className="bg-gray-700/30 rounded-2xl p-6 border border-gray-600/50"
+                    >
                       <div className="flex justify-between items-start mb-4">
-                        <h3 className="text-lg font-semibold text-white">Speaker Details</h3>
+                        <h3 className="text-lg font-semibold text-white">
+                          Speaker Details
+                        </h3>
                         <button
                           type="button"
                           onClick={() => removeSpeaker(speaker.id)}
@@ -509,21 +578,29 @@ const handleOperations = async () => {
                       </div>
                       <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Name
+                          </label>
                           <input
                             type="text"
                             value={speaker.name}
-                            onChange={(e) => updateSpeaker(speaker.id, "name", e.target.value)}
+                            onChange={(e) =>
+                              updateSpeaker(speaker.id, "name", e.target.value)
+                            }
                             className="w-full bg-gray-600/50 border border-gray-500 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors"
                             placeholder="Speaker name"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Email (Optional)</label>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Email (Optional)
+                          </label>
                           <input
                             type="email"
                             value={speaker.email}
-                            onChange={(e) => updateSpeaker(speaker.id, "email", e.target.value)}
+                            onChange={(e) =>
+                              updateSpeaker(speaker.id, "email", e.target.value)
+                            }
                             className="w-full bg-gray-600/50 border border-gray-500 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors"
                             placeholder="speaker@email.com"
                           />
@@ -532,19 +609,28 @@ const handleOperations = async () => {
 
                       {/* Speaker Image with Preview */}
                       <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Speaker Image</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Speaker Image
+                        </label>
                         {speakerPreviews[speaker.id] ? (
                           <div className="flex items-center gap-4">
                             <img
-                              src={speakerPreviews[speaker.id] || "/placeholder.svg"}
+                              src={
+                                speakerPreviews[speaker.id] ||
+                                "/placeholder.svg"
+                              }
                               alt="Speaker preview"
                               className="w-16 h-16 rounded-full object-cover"
                             />
                             <div className="flex-1">
-                              <p className="text-green-400 text-sm mb-2">Image selected</p>
+                              <p className="text-green-400 text-sm mb-2">
+                                Image selected
+                              </p>
                               <button
                                 type="button"
-                                onClick={() => handleSpeakerImageUpload(speaker.id, null)}
+                                onClick={() =>
+                                  handleSpeakerImageUpload(speaker.id, null)
+                                }
                                 className="text-red-400 hover:text-red-300 text-sm transition-colors"
                               >
                                 Remove image
@@ -555,18 +641,31 @@ const handleOperations = async () => {
                           <input
                             type="file"
                             accept="image/*"
-                            onChange={(e) => handleSpeakerImageUpload(speaker.id, e.target.files?.[0] || null)}
+                            onChange={(e) =>
+                              handleSpeakerImageUpload(
+                                speaker.id,
+                                e.target.files?.[0] || null
+                              )
+                            }
                             className="w-full bg-gray-600/50 border border-gray-500 rounded-lg px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-orange-500 file:text-white hover:file:bg-orange-600 transition-colors"
                           />
                         )}
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Short Description</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Short Description
+                        </label>
                         <textarea
                           rows={3}
                           value={speaker.description}
-                          onChange={(e) => updateSpeaker(speaker.id, "description", e.target.value)}
+                          onChange={(e) =>
+                            updateSpeaker(
+                              speaker.id,
+                              "description",
+                              e.target.value
+                            )
+                          }
                           className="w-full bg-gray-600/50 border border-gray-500 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors resize-none"
                           placeholder="Brief description of the speaker..."
                         />
@@ -591,15 +690,21 @@ const handleOperations = async () => {
                       name="organizedBy"
                       value="solo"
                       checked={organizedBy === "solo"}
-                      onChange={(e) => setOrganizedBy(e.target.value as "solo" | "community")}
+                      onChange={(e) =>
+                        setOrganizedBy(e.target.value as "solo" | "community")
+                      }
                       className="sr-only"
                     />
                     <div
                       className={`w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center transition-colors ${
-                        organizedBy === "solo" ? "border-orange-500 bg-orange-500" : "border-gray-400"
+                        organizedBy === "solo"
+                          ? "border-orange-500 bg-orange-500"
+                          : "border-gray-400"
                       }`}
                     >
-                      {organizedBy === "solo" && <div className="w-2 h-2 bg-white rounded-full" />}
+                      {organizedBy === "solo" && (
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      )}
                     </div>
                     <span className="text-white font-medium">Solo</span>
                   </label>
@@ -609,22 +714,30 @@ const handleOperations = async () => {
                       name="organizedBy"
                       value="community"
                       checked={organizedBy === "community"}
-                      onChange={(e) => setOrganizedBy(e.target.value as "solo" | "community")}
+                      onChange={(e) =>
+                        setOrganizedBy(e.target.value as "solo" | "community")
+                      }
                       className="sr-only"
                     />
                     <div
                       className={`w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center transition-colors ${
-                        organizedBy === "community" ? "border-orange-500 bg-orange-500" : "border-gray-400"
+                        organizedBy === "community"
+                          ? "border-orange-500 bg-orange-500"
+                          : "border-gray-400"
                       }`}
                     >
-                      {organizedBy === "community" && <div className="w-2 h-2 bg-white rounded-full" />}
+                      {organizedBy === "community" && (
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      )}
                     </div>
                     <span className="text-white font-medium">Community</span>
                   </label>
                 </div>
                 {organizedBy === "community" && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">Community Name</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Community Name
+                    </label>
                     <input
                       type="text"
                       value={communityName}
@@ -649,7 +762,9 @@ const handleOperations = async () => {
               <div className="space-y-8">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">Start Date & Time *</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Start Date & Time *
+                    </label>
                     <input
                       type="datetime-local"
                       value={startDateTime}
@@ -659,7 +774,9 @@ const handleOperations = async () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">End Date & Time *</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      End Date & Time *
+                    </label>
                     <input
                       type="datetime-local"
                       value={endDateTime}
@@ -670,7 +787,9 @@ const handleOperations = async () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Location *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Location *
+                  </label>
                   <input
                     type="text"
                     value={location}
@@ -691,7 +810,9 @@ const handleOperations = async () => {
               </h2>
               <div className="space-y-8">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Requirements to Attend</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Requirements to Attend
+                  </label>
                   <textarea
                     rows={4}
                     value={requirementsToAttend}
@@ -701,7 +822,9 @@ const handleOperations = async () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">What's Included</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    What's Included
+                  </label>
                   <textarea
                     rows={4}
                     value={whatsIncluded}
@@ -711,7 +834,9 @@ const handleOperations = async () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Agenda</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Agenda
+                  </label>
                   <textarea
                     rows={4}
                     value={agenda}
@@ -734,7 +859,9 @@ const handleOperations = async () => {
                 <div className="flex items-center justify-between p-4 bg-gray-700/30 rounded-xl border border-gray-600/50">
                   <div>
                     <h3 className="text-white font-medium">Free Event</h3>
-                    <p className="text-gray-400 text-sm">Make this event free for all attendees</p>
+                    <p className="text-gray-400 text-sm">
+                      Make this event free for all attendees
+                    </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -748,7 +875,9 @@ const handleOperations = async () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Ticket Name *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Ticket Name *
+                  </label>
                   <input
                     type="text"
                     value={ticketName}
@@ -764,7 +893,9 @@ const handleOperations = async () => {
                 </div>
                 <div className="grid grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">Ticket Price (ETH) *</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Ticket Price (ETH) *
+                    </label>
                     <input
                       type="number"
                       step="0.001"
@@ -781,22 +912,32 @@ const handleOperations = async () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">Max Tickets Available *</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Max Tickets Available *
+                    </label>
                     <input
                       type="number"
                       value={maxTicketsAvailable || ""}
-                      onChange={(e) => setMaxTicketsAvailable(Number.parseInt(e.target.value) || 0)}
+                      onChange={(e) =>
+                        setMaxTicketsAvailable(
+                          Number.parseInt(e.target.value) || 0
+                        )
+                      }
                       className="w-full bg-gray-700/50 border border-gray-600 rounded-xl px-6 py-4 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors"
                       placeholder="1000"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">Max/Wallet *</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Max/Wallet *
+                    </label>
                     <input
                       type="number"
                       value={maxPerWallet || ""}
-                      onChange={(e) => setMaxPerWallet(Number.parseInt(e.target.value) || 0)}
+                      onChange={(e) =>
+                        setMaxPerWallet(Number.parseInt(e.target.value) || 0)
+                      }
                       className="w-full bg-gray-700/50 border border-gray-600 rounded-xl px-6 py-4 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors"
                       placeholder="5"
                       required
@@ -804,7 +945,9 @@ const handleOperations = async () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">Sale Start Date *</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-3">
+                    Sale Start Date *
+                  </label>
                   <input
                     type="datetime-local"
                     value={saleStartDate}
@@ -825,7 +968,9 @@ const handleOperations = async () => {
               <div className="space-y-8">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">Network</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                      Network
+                    </label>
                     <select
                       value={network}
                       onChange={(e) => setNetwork(e.target.value)}
@@ -841,7 +986,9 @@ const handleOperations = async () => {
                     <label className="block text-sm font-medium text-gray-300 mb-3">
                       Royalty (%)
                       {isFreeEvent && (
-                        <span className="text-gray-500 text-xs ml-2">(Not applicable for free events)</span>
+                        <span className="text-gray-500 text-xs ml-2">
+                          (Not applicable for free events)
+                        </span>
                       )}
                     </label>
                     <input
@@ -879,5 +1026,5 @@ const handleOperations = async () => {
         </div>
       </div>
     </div>
-  )
+  );
 }

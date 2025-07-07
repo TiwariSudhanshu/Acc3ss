@@ -4,7 +4,7 @@ import Ticket from "./ticket";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getContract } from "@/contract/contract";
-import { BigNumberish, parseEther } from "ethers";
+import {  BigNumberish, parseEther } from "ethers";
 import { useAccount } from "wagmi";
 import { useAppDispatch } from "@/store/hook";
 import  {addTicketOwned} from "@/store/userSlice"; 
@@ -37,7 +37,7 @@ export default function BuyTicketModal({
   const dispatch = useAppDispatch();
   const { address } = useAccount();
 
- const handlePurchase = async () => {
+  const handlePurchase = async () => {
   setLoading(true);
   try {
     const contract = await getContract();
@@ -51,23 +51,40 @@ export default function BuyTicketModal({
     const tx = await contract.mintTicket(eventData.id, { value });
     const receipt = await tx.wait();
 
-    const event = receipt.events?.find(
-      (e:any) =>
-        e.event === "TicketMinted" &&
-        e.args?.to.toLowerCase() === address?.toLowerCase()
-    );
+    console.log("Receipt logs:", receipt.logs);
+    let ticketId: number | null = null;
+  for (const log of receipt.logs) {
+  if (
+    log.fragment?.name === "TicketMinted" &&
+    log.args?.[0]?.toLowerCase() === address?.toLowerCase()
+  ) {
+    ticketId = Number(log.args[1]);
+    break;
+  }
+}
 
-    if (!event) throw new Error("TicketMinted event not found");
+    if (ticketId === null) throw new Error("TicketMinted event not found");
 
-    const ticketId = event.args?.ticketId.toNumber();
+    try {
+     const response = await fetch("/api/addOwnedTicket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId, walletAddress: address }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update owned tickets");
+      }
+      const data = await response.json();
+      console.log("Owned tickets updated:", data);
+      toast.success("Your ticket ownership has been updated successfully");
 
-    await fetch("/api/addOwnedTicket", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticketId, walletAddress: address }),
-    });
+    } catch (error) {
+      console.error("Failed to update owned tickets:", error);
+      toast.error("Failed to update your ticket ownership. Please try again later.");
+      return;    
+    }
+
     dispatch(addTicketOwned(ticketId.toString()));
-
     toast.success("Ticket purchased successfully");
     onClose();
   } catch (error) {
@@ -77,6 +94,7 @@ export default function BuyTicketModal({
     setLoading(false);
   }
 };
+
 
 
   return (

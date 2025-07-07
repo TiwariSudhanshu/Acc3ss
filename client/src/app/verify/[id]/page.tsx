@@ -128,7 +128,7 @@ export default function VerifyEventPage() {
           .stop()
           .then(() => scannerRef.current?.clear())
           .catch((err) => console.error("Cleanup error:", err))
-      }
+      } 
     }
   }, [isScannerOpen])
 
