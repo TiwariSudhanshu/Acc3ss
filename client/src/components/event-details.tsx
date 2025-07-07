@@ -466,7 +466,9 @@ export default function EventDetails() {
                       className="flex items-start space-x-4 p-6 bg-gray-700/30 rounded-2xl"
                     >
                       <img
-                        src={speaker.imageUrl || "/placeholder.svg?height=80&width=80"}
+                        src={
+                          // speaker.imageUrl || 
+                          "https://i.pinimg.com/736x/96/51/60/9651605860388437ea779e0a51ab5649.jpg"}
                         alt={speaker.name}
                         className="w-20 h-20 rounded-full object-cover flex-shrink-0"
                       />

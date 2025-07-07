@@ -22,6 +22,7 @@ interface Event {
   category: string
   status: string
   organizer: string
+  ticketId?: number 
 }
 
 interface OwnedTicket {
@@ -109,7 +110,7 @@ export default function ProfileDashboard() {
       return null
     }
   }
-  // Mock user data
+
   const currentUser = useSelector((state: RootState) => state.user)
 
   const user = {
@@ -182,7 +183,7 @@ export default function ProfileDashboard() {
   const getOwnedTickets = async () => {
     try {
       setIsLoadingTickets(true)
-      setTicketsOwned([]) // Clear existing data to prevent duplicates
+      setTicketsOwned([]) 
       const contract = await getContract()
       const tickets: Event[] = []
 
@@ -195,6 +196,7 @@ export default function ProfileDashboard() {
         tickets.push({
           id: Number.parseInt(eventId),
           title: metadata?.eventName || event.name,
+          ticketId: Number(ticket),
           image: metadata?.bannerImage ? convertIPFSToHTTP(metadata.bannerImage) : "/placeholder.svg",
           date: dateTime.date,
           time: dateTime.time,
@@ -709,6 +711,7 @@ export default function ProfileDashboard() {
             <div className="p-6">
               {selectedTicket && (
                 <TicketComponent
+                  eventId={selectedTicket.ticketId?.toString()}
                   eventTitle={selectedTicket.title}
                   eventBanner={selectedTicket.image}
                   eventDate={selectedTicket.date}

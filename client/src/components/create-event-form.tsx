@@ -277,11 +277,12 @@ export default function CreateEventForm() {
       formData.append("speakers", JSON.stringify(speakersData));
 
       // Add speaker images separately
-      data.speakers.forEach((speaker, index) => {
-        if (speaker.image) {
-          formData.append(`speakerImage_${index}`, speaker.image);
-        }
-      });
+      data.speakers.forEach((speaker) => {
+  if (speaker.image) {
+    formData.append(`speakerImage_${speaker.id}`, speaker.image); 
+  }
+});
+
 
       // Call your API endpoint to upload metadata
       const response = await fetch("/api/uploadMetadata", {

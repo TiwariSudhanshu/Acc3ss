@@ -9,6 +9,7 @@ import { useAccount } from "wagmi";
 import { useAppDispatch } from "@/store/hook";
 import  {addTicketOwned} from "@/store/userSlice"; 
 
+
 interface BuyTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -94,6 +95,7 @@ export default function BuyTicketModal({
     setLoading(false);
   }
 };
+
 
 
 

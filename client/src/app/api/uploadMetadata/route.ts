@@ -41,37 +41,32 @@ export async function POST(req: NextRequest) {
       speakers = [];
     }
 
-    const processedSpeakers = await Promise.all(
-      speakers.map(async (speaker: any, index: number) => {
-        const speakerImageKey = `speakerImage_${index}`;
-        const speakerImageFile = data.get(speakerImageKey) as File;
-        
-        if (speakerImageFile && speakerImageFile.size > 0) {
-          try {
-            const { cid: speakerImageCID } = await pinata.upload.public.file(speakerImageFile);
-            const speakerImageUrl = `ipfs://${speakerImageCID}`;
-            
-            return {
-              ...speaker,
-              avatar: speakerImageUrl
-            };
-          } catch (error) {
-            console.error(`Error uploading speaker ${index} image:`, error);
-            return {
-              name: speaker.name || '',
-              role: speaker.role || '',
-              avatar: speaker.avatar || '' 
-            };
-          }
-        }
+const processedSpeakers = await Promise.all(
+  speakers.map(async (speaker: any) => {
+    const speakerImageKey = `speakerImage_${speaker.id}`;
+    const speakerImageFile = data.get(speakerImageKey) as File;
+
+    if (speakerImageFile && speakerImageFile.size > 0) {
+      try {
+        const { cid: speakerImageCID } = await pinata.upload.public.file(speakerImageFile);
+        const speakerImageUrl = `ipfs://${speakerImageCID}`;
         
         return {
-          name: speaker.name || '',
-          role: speaker.role || '',
-          avatar: speaker.avatar || ''
+          ...speaker,
+          avatar: speakerImageUrl
         };
-      })
-    );
+      } catch (error) {
+        console.error(`Error uploading speaker image for ${speaker.id}:`, error);
+      }
+    }
+
+    return {
+      ...speaker,
+      avatar: speaker.avatar || ''
+    };
+  })
+);
+
 
     const metadata = cleanMetadata({
       eventName,
