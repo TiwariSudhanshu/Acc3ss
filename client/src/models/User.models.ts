@@ -26,6 +26,10 @@ const UserSchema = new mongoose.Schema({
     eventsCreated: [{
         type: String
     }],
+    eventsAttended: [{
+        type: String,
+        default: []
+    }],
 }, {
     timestamps: true,   
 });

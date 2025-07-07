@@ -18,6 +18,7 @@ import {
   Download,
   UserCheck,
   UserX,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import { getContract } from "@/contract/contract"
@@ -63,6 +64,7 @@ export default function VerifyEventPage() {
   const router = useRouter()
   const eventId = params.id as string
 
+  // State management
   const [eventDetails, setEventDetails] = useState<EventDetails | null>(null)
   const [ticketEntries, setTicketEntries] = useState<TicketEntry[]>([])
   const [filteredTicketEntries, setFilteredTicketEntries] = useState<TicketEntry[]>([])
@@ -73,6 +75,9 @@ export default function VerifyEventPage() {
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<TicketEntry | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isVerificationLoading, setIsVerificationLoading] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [accessGranted, setAccessGranted] = useState(false)
   const [stats, setStats] = useState({
     total: 0,
     verified: 0,
@@ -80,57 +85,84 @@ export default function VerifyEventPage() {
   })
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
+  const isScannerInitialized = useRef(false)
 
+  // QR Scanner initialization
   useEffect(() => {
     if (!isScannerOpen) {
-      if (scannerRef.current) {
+      if (scannerRef.current && isScannerInitialized.current) {
         scannerRef.current
           .stop()
-          .then(() => scannerRef.current?.clear())
+          .then(() => {
+            scannerRef.current?.clear()
+            isScannerInitialized.current = false
+          })
           .catch((err) => console.error("Failed to stop scanner:", err))
       }
       return
     }
 
-    const html5QrCode = new Html5Qrcode("qr-reader")
-    scannerRef.current = html5QrCode
+    if (isScannerInitialized.current) return
 
-    Html5Qrcode.getCameras()
-      .then((devices) => {
+    const initializeScanner = async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("qr-reader")
+        scannerRef.current = html5QrCode
+        const devices = await Html5Qrcode.getCameras()
+
         if (devices && devices.length > 0) {
           const cameraId = devices[0].id
-          html5QrCode
-            .start(
-              cameraId,
-              { fps: 10, qrbox: { width: 250, height: 250 } },
-              (decodedText: string, _decodedResult) => {
-                handleQRScan(decodedText)
-                setIsScannerOpen(false)
-                html5QrCode
-                  .stop()
-                  .then(() => html5QrCode.clear())
-                  .catch((err) => console.error("Failed to clear scanner:", err))
-              },
-              (errorMessage: string) => {
-                // console.warn("QR error:", errorMessage);
-              },
-            )
-            .catch((err) => console.error("Start camera error:", err))
+          await html5QrCode.start(
+            cameraId,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText: string) => {
+              handleQRScan(decodedText)
+            },
+            (errorMessage: string) => {
+              // Ignore frequent QR scanning errors
+            },
+          )
+          isScannerInitialized.current = true
         }
-      })
-      .catch((err) => {
-        console.error("Camera permission error:", err)
-      })
+      } catch (err) {
+        console.error("Camera initialization error:", err)
+        toast.error("Failed to initialize camera")
+        setIsScannerOpen(false)
+      }
+    }
+
+    initializeScanner()
 
     return () => {
-      if (scannerRef.current) {
+      if (scannerRef.current && isScannerInitialized.current) {
         scannerRef.current
           .stop()
-          .then(() => scannerRef.current?.clear())
+          .then(() => {
+            scannerRef.current?.clear()
+            isScannerInitialized.current = false
+          })
           .catch((err) => console.error("Cleanup error:", err))
-      } 
+      }
     }
   }, [isScannerOpen])
+
+  const closeScannerSafely = () => {
+    if (scannerRef.current && isScannerInitialized.current) {
+      scannerRef.current
+        .stop()
+        .then(() => {
+          scannerRef.current?.clear()
+          isScannerInitialized.current = false
+          setIsScannerOpen(false)
+        })
+        .catch((err) => {
+          console.error("Failed to close scanner:", err)
+          setIsScannerOpen(false)
+        })
+    } else {
+      setIsScannerOpen(false)
+    }
+  }
 
   // Get event data from localStorage
   const getEventFromCache = () => {
@@ -174,9 +206,7 @@ export default function VerifyEventPage() {
       })
 
       const data = await res.json()
-
       if (res.ok) {
-        // Transform attendees data to individual ticket entries
         const ticketEntriesData: TicketEntry[] = []
         data.attendees.forEach((attendee: Attendee) => {
           attendee.ticketsOwned.forEach((ticketId: string) => {
@@ -194,7 +224,6 @@ export default function VerifyEventPage() {
         setTicketEntries(ticketEntriesData)
         setFilteredTicketEntries(ticketEntriesData)
 
-        // Update stats
         setStats({
           total: ticketEntriesData.length,
           verified: 0,
@@ -213,7 +242,6 @@ export default function VerifyEventPage() {
   const applyFilters = (ticketList: TicketEntry[]) => {
     let filtered = ticketList
 
-    // Apply search filter
     if (searchQuery.trim()) {
       filtered = filtered.filter(
         (ticket) =>
@@ -224,7 +252,6 @@ export default function VerifyEventPage() {
       )
     }
 
-    // Apply status filter
     if (filterStatus !== "all") {
       filtered = filtered.filter((ticket) => (filterStatus === "verified" ? ticket.verified : !ticket.verified))
     }
@@ -244,36 +271,103 @@ export default function VerifyEventPage() {
     setFilteredTicketEntries(filtered)
   }
 
-  const handleQRScan = async (data: string) => {
+  const decryptQR = async (encrypted: string) => {
+    try {
+      const secret = process.env.NEXT_PUBLIC_QR_SECRET_KEY
+      if (!secret || secret.length !== 32) {
+        throw new Error("Invalid or missing encryption key.")
+      }
+
+      const keyMaterial = new TextEncoder().encode(secret)
+      const cryptoKey = await window.crypto.subtle.importKey("raw", keyMaterial, { name: "AES-GCM" }, false, [
+        "decrypt",
+      ])
+
+      const combinedBytes = Uint8Array.from(atob(encrypted), (c) => c.charCodeAt(0))
+      const iv = combinedBytes.slice(0, 12)
+      const encryptedData = combinedBytes.slice(12)
+
+      const decryptedBuffer = await window.crypto.subtle.decrypt(
+        {
+          name: "AES-GCM",
+          iv: iv,
+        },
+        cryptoKey,
+        encryptedData,
+      )
+
+      const decodedText = new TextDecoder().decode(decryptedBuffer)
+      const [walletAddress, ticketId] = decodedText.split("-")
+
+      if (!walletAddress || !ticketId) {
+        throw new Error("Invalid QR code format.")
+      }
+
+      return { walletAddress, ticketId }
+    } catch (error) {
+      console.error("Error verifying QR code:", error)
+      throw new Error("Invalid QR code format!")
+    }
+  }
+
+  const verifyTicketData = async (walletAddress: string, ticketId: string) => {
     try {
       const contract = await getContract()
-      // Parse QR code data (assuming it contains wallet address or ticket info)
-      const ticketData = JSON.parse(data)
-      const ticket = ticketEntries.find(
-        (t) => t.walletAddress === ticketData.walletAddress || t.ticketId === ticketData.ticketId,
-      )
+      const ticket = ticketEntries.find((t) => t.walletAddress === walletAddress || t.ticketId === ticketId)
+
+      const eventIdOfTicket = await contract.tokenToEvent(ticketId)
+      const isMatch = eventIdOfTicket.toString() === eventId.toString()
+
+      if (!isMatch) {
+        throw new Error("Ticket does not belong to this event!")
+      }
 
       if (ticket) {
         const owner = await contract.ownerOf(ticket.ticketId)
-        if (owner.toLowerCase() === ticketData.walletAddress.toLowerCase()) {
-          // Open verification modal instead of just showing toast
-          setSelectedTicket(ticket)
-          setIsVerificationModalOpen(true)
+        if (owner.toLowerCase() === walletAddress.toLowerCase()) {
+          return ticket
         } else {
-          toast.error("Ticket ownership verification failed!")
+          throw new Error("Ticket ownership verification failed!")
         }
       } else {
-        toast.error("Invalid ticket or ticket not found!")
+        throw new Error("Invalid ticket or ticket not found!")
       }
     } catch (error) {
-      toast.error("Invalid QR code format!")
+      throw error
     }
-    setIsScannerOpen(false)
+  }
+
+  const handleQRScan = async (data: string) => {
+    setIsVerificationLoading(true)
+    closeScannerSafely()
+
+    try {
+      // Show verification modal with loading state
+      setIsVerificationModalOpen(true)
+
+      const result = await decryptQR(data)
+      if (!result) {
+        throw new Error("Invalid QR code format!")
+      }
+
+      const { walletAddress, ticketId } = result
+      const ticket = await verifyTicketData(walletAddress, ticketId)
+
+      setSelectedTicket(ticket)
+      toast.success("QR code verified successfully!")
+    } catch (error) {
+      console.error("Error in handleQRScan:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to process QR code")
+      setIsVerificationModalOpen(false)
+    } finally {
+      setIsVerificationLoading(false)
+    }
   }
 
   const handleVerifyClick = (ticket: TicketEntry) => {
     setSelectedTicket(ticket)
     setIsVerificationModalOpen(true)
+    setAccessGranted(false)
   }
 
   const handleGrantAccess = async () => {
@@ -281,34 +375,46 @@ export default function VerifyEventPage() {
 
     setIsProcessing(true)
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      const res = await fetch("/api/grantAccess", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ticketId: selectedTicket.ticketId,
+          walletAddress: selectedTicket.walletAddress,
+        }),
+      })
 
-      const updatedTickets = ticketEntries.map((ticket) =>
-        ticket.ticketId === selectedTicket.ticketId
-          ? {
-              ...ticket,
-              verified: true,
-              verifiedAt: new Date().toISOString(),
-              checkInTime: new Date().toLocaleTimeString(),
-            }
-          : ticket,
-      )
+      if (res.ok) {
+        setAccessGranted(true)
+        toast.success("Access granted successfully!")
 
-      setTicketEntries(updatedTickets)
-      const filtered = applyFilters(updatedTickets)
-      setFilteredTicketEntries(filtered)
+        // Update ticket status in local state
+        const updatedTickets = ticketEntries.map((ticket) =>
+          ticket.ticketId === selectedTicket.ticketId
+            ? { ...ticket, verified: true, verifiedAt: new Date().toISOString() }
+            : ticket,
+        )
+        setTicketEntries(updatedTickets)
+        setFilteredTicketEntries(applyFilters(updatedTickets))
 
-      // Update stats
-      setStats((prev) => ({
-        ...prev,
-        verified: prev.verified + 1,
-        pending: prev.pending - 1,
-      }))
+        // Update stats
+        setStats((prev) => ({
+          ...prev,
+          verified: prev.verified + 1,
+          pending: prev.pending - 1,
+        }))
 
-      toast.success("Access granted successfully!")
-      setIsVerificationModalOpen(false)
-      setSelectedTicket(null)
+        // Close modal after 2 seconds
+        setTimeout(() => {
+          setIsVerificationModalOpen(false)
+          setSelectedTicket(null)
+          setAccessGranted(false)
+        }, 2000)
+      } else {
+        toast.error("Failed to grant access")
+      }
     } catch (error) {
       console.error("Error granting access:", error)
       toast.error("Failed to grant access")
@@ -321,55 +427,69 @@ export default function VerifyEventPage() {
     toast.info("Access rejected")
     setIsVerificationModalOpen(false)
     setSelectedTicket(null)
+    setAccessGranted(false)
   }
 
-  const exportAttendees = () => {
-    const csvContent = [
-      ["Name", "Email", "Wallet Address", "Ticket ID", "Status", "Check-in Time"].join(","),
-      ...filteredTicketEntries.map((ticket) =>
+  const exportAttendees = async () => {
+    setIsExporting(true)
+    try {
+      // Create Excel-compatible CSV with BOM for proper encoding
+      const BOM = "\uFEFF"
+      const csvContent =
+        BOM +
         [
-          ticket.name,
-          ticket.email,
-          ticket.walletAddress,
-          ticket.ticketId,
-          ticket.verified ? "Verified" : "Pending",
-          ticket.checkInTime || "Not checked in",
-        ].join(","),
-      ),
-    ].join("\n")
+          ["Name", "Email", "Wallet Address", "Ticket ID", "Status", "Check-in Time"].join(","),
+          ...filteredTicketEntries.map((ticket) =>
+            [
+              `"${ticket.name}"`,
+              `"${ticket.email}"`,
+              `"${ticket.walletAddress}"`,
+              `"${ticket.ticketId}"`,
+              `"${ticket.verified ? "Verified" : "Pending"}"`,
+              `"${ticket.checkInTime || "Not checked in"}"`,
+            ].join(","),
+          ),
+        ].join("\n")
 
-    const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `${eventDetails?.title.replace(/\s+/g, "-").toLowerCase()}-tickets.csv`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    toast.success("Ticket list exported successfully!")
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `${eventDetails?.title.replace(/\s+/g, "-").toLowerCase()}-attendees.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      toast.success("Attendee list exported successfully!")
+    } catch (error) {
+      console.error("Export error:", error)
+      toast.error("Failed to export attendee list")
+    } finally {
+      setIsExporting(false)
+    }
   }
 
+  // Load initial data
   useEffect(() => {
+    if (!eventId) return
+
     const loadData = async () => {
       setIsLoading(true)
-      // Get event data from localStorage
       const eventFound = getEventFromCache()
+
       if (!eventFound) {
         toast.error("Event not found in cache")
         setIsLoading(false)
         return
       }
 
-      // Get attendees data
       await handleGetAttendees()
       setIsLoading(false)
     }
 
-    if (eventId) {
-      loadData()
-    }
-  }, [eventId])
+    loadData()
+  }, [])
 
   if (isLoading) {
     return (
@@ -420,10 +540,11 @@ export default function VerifyEventPage() {
           <div className="flex items-center space-x-3">
             <button
               onClick={exportAttendees}
-              className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
+              disabled={isExporting}
+              className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
             >
-              <Download className="w-4 h-4 mr-2" />
-              Export
+              {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              {isExporting ? "Exporting..." : "Export"}
             </button>
             <button
               onClick={() => setIsScannerOpen(true)}
@@ -439,7 +560,7 @@ export default function VerifyEventPage() {
         <div className="bg-gray-800/50 rounded-2xl border border-gray-700 p-6 mb-8">
           <div className="flex items-start space-x-6">
             <img
-              src={eventDetails.banner || "/placeholder.svg"}
+              src={eventDetails.banner || "/placeholder.svg?height=128&width=128"}
               alt={eventDetails.title}
               className="w-32 h-32 rounded-xl object-cover"
             />
@@ -497,7 +618,6 @@ export default function VerifyEventPage() {
         {/* Search and Filters */}
         <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6 mb-8">
           <div className="space-y-4">
-            {/* Search Bar */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
@@ -508,14 +628,11 @@ export default function VerifyEventPage() {
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg pl-10 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
-
-            {/* Filters */}
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center space-x-2">
                 <Filter className="w-4 h-4 text-gray-400" />
                 <span className="text-gray-400 text-sm">Filters:</span>
               </div>
-              {/* Status Filter */}
               <select
                 value={filterStatus}
                 onChange={(e) => handleStatusFilter(e.target.value as "all" | "verified" | "pending")}
@@ -525,7 +642,6 @@ export default function VerifyEventPage() {
                 <option value="verified">Verified</option>
                 <option value="pending">Pending</option>
               </select>
-              {/* Clear Filters */}
               {(searchQuery || filterStatus !== "all") && (
                 <button
                   onClick={() => {
@@ -562,7 +678,7 @@ export default function VerifyEventPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <img
-                        src={ticket.profilePicture || "/placeholder.svg"}
+                        src={ticket.profilePicture || "/placeholder.svg?height=56&width=56"}
                         alt={ticket.name}
                         className="w-14 h-14 rounded-full object-cover border-2 border-gray-600"
                       />
@@ -591,7 +707,6 @@ export default function VerifyEventPage() {
                         </div>
                       </div>
                     </div>
-
                     <div className="flex items-center space-x-4">
                       {ticket.verified ? (
                         <div className="flex items-center space-x-3">
@@ -637,7 +752,7 @@ export default function VerifyEventPage() {
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
               <h2 className="text-xl font-semibold text-white">Scan QR Code</h2>
               <button
-                onClick={() => setIsScannerOpen(false)}
+                onClick={closeScannerSafely}
                 className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
               >
                 <XCircle className="w-5 h-5" />
@@ -648,18 +763,15 @@ export default function VerifyEventPage() {
                 <QrCode className="w-16 h-16 text-orange-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-white mb-2">QR Scanner</h3>
                 <p className="text-gray-400 mb-4">Position the QR code within the frame to scan</p>
-                {/* Actual QR scanner will mount here */}
                 <div className="bg-gray-700 rounded-lg p-4 mb-4">
                   <div id="qr-reader" className="aspect-square bg-gray-600 rounded-lg" />
                 </div>
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setIsScannerOpen(false)}
-                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                <button
+                  onClick={closeScannerSafely}
+                  className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
@@ -667,64 +779,82 @@ export default function VerifyEventPage() {
       )}
 
       {/* Verification Modal */}
-      {isVerificationModalOpen && selectedTicket && (
+      {isVerificationModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-gray-900 rounded-2xl border border-gray-700 max-w-md w-full">
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
-              <h2 className="text-xl font-semibold text-white">Verify Attendee</h2>
+              <h2 className="text-xl font-semibold text-white">
+                {isVerificationLoading ? "Verifying..." : "Verify Attendee"}
+              </h2>
               <button
-                onClick={() => setIsVerificationModalOpen(false)}
+                onClick={() => {
+                  setIsVerificationModalOpen(false)
+                  setSelectedTicket(null)
+                  setAccessGranted(false)
+                }}
                 className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6">
-              <div className="text-center mb-6">
-                <img
-                  src={selectedTicket.profilePicture || "/placeholder.svg"}
-                  alt={selectedTicket.name}
-                  className="w-20 h-20 rounded-full object-cover border-2 border-gray-600 mx-auto mb-4"
-                />
-                <h3 className="text-xl font-semibold text-white mb-2">{selectedTicket.name}</h3>
-                <p className="text-gray-400 text-sm mb-1">{selectedTicket.email}</p>
-                <div className="flex items-center justify-center space-x-2 mb-4">
-                  <span className="px-3 py-1 rounded-full text-xs font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">
-                    Ticket #{selectedTicket.ticketId}
-                  </span>
+              {isVerificationLoading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-12 h-12 text-orange-400 mx-auto mb-4 animate-spin" />
+                  <p className="text-gray-400">Verifying QR code...</p>
                 </div>
-                <p className="text-xs text-gray-500">
-                  Wallet: {selectedTicket.walletAddress.slice(0, 12)}...{selectedTicket.walletAddress.slice(-8)}
-                </p>
-              </div>
+              ) : selectedTicket ? (
+                <div className="text-center mb-6">
+                  <img
+                    src={selectedTicket.profilePicture || "/placeholder.svg?height=80&width=80"}
+                    alt={selectedTicket.name}
+                    className="w-20 h-20 rounded-full object-cover border-2 border-gray-600 mx-auto mb-4"
+                  />
+                  <h3 className="text-xl font-semibold text-white mb-2">{selectedTicket.name}</h3>
+                  <p className="text-gray-400 text-sm mb-1">{selectedTicket.email}</p>
+                  <div className="flex items-center justify-center space-x-2 mb-4">
+                    <span className="px-3 py-1 rounded-full text-xs font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">
+                      Ticket #{selectedTicket.ticketId}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Wallet: {selectedTicket.walletAddress.slice(0, 12)}...{selectedTicket.walletAddress.slice(-8)}
+                  </p>
 
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleRejectAccess}
-                  disabled={isProcessing}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  <UserX className="w-4 h-4 mr-1" />
-                  Reject
-                </button>
-                <button
-                  onClick={handleGrantAccess}
-                  disabled={isProcessing}
-                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center"
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <UserCheck className="w-5 h-5 mr-2" />
-                      Grant Access
-                    </>
-                  )}
-                </button>
-              </div>
+                  <div className="flex space-x-3 mt-6">
+                    <button
+                      onClick={handleRejectAccess}
+                      disabled={isProcessing || accessGranted}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors flex items-center"
+                    >
+                      <UserX className="w-4 h-4 mr-1" />
+                      Reject
+                    </button>
+                    <button
+                      onClick={handleGrantAccess}
+                      disabled={isProcessing || accessGranted}
+                      className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center"
+                    >
+                      {accessGranted ? (
+                        <>
+                          <CheckCircle className="w-5 h-5 mr-2 text-green-300" />
+                          Access Granted!
+                        </>
+                      ) : isProcessing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="w-5 h-5 mr-2" />
+                          Grant Access
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

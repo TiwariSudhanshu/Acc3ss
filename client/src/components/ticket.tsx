@@ -34,7 +34,7 @@ export default function Ticket({
   const [qrPattern, setQrPattern] = useState<boolean[][] | null>(null);
 
   const generateQRPattern = () => {
-    const size = 8;
+    const size = 12; 
     const pattern = [];
     for (let i = 0; i < size; i++) {
       const row = [];
@@ -98,8 +98,8 @@ export default function Ticket({
       const qr = await QRCode.toDataURL(encrypted, {
         errorCorrectionLevel: "H",
         type: "image/png",
-        width: 300,
-        margin: 2,
+        width: 500, // Increased from 300 for better quality
+        margin: 1, // Reduced margin to maximize QR size
         color: {
           dark: "#000000",
           light: "#ffffff",
@@ -118,7 +118,7 @@ export default function Ticket({
   }, [eventId]);
 
   return (
-    <div className="relative w-full max-w-5xl mx-auto">
+    <div className="relative w-full max-w-6xl mx-auto">
       <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-2xl blur-xl -z-10 scale-105"></div>
 
       <div className="relative bg-gradient-to-br from-gray-800 via-gray-900 to-black rounded-2xl overflow-hidden border border-gray-600/30 shadow-2xl h-96">
@@ -128,7 +128,8 @@ export default function Ticket({
         </div>
 
         <div className="relative flex h-full">
-          <div className="w-2/5 relative overflow-hidden">
+          {/* Left section - Event banner */}
+          <div className="w-1/3 relative overflow-hidden">
             <img
               src={eventBanner || "/placeholder.svg?height=384&width=400"}
               alt={eventTitle}
@@ -137,7 +138,8 @@ export default function Ticket({
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-900/20 to-gray-900/60"></div>
           </div>
 
-          <div className="flex-1 p-6 relative flex flex-col justify-between">
+          {/* Middle section - Event details */}
+          <div className="w-1/3 p-6 relative flex flex-col justify-between">
             <div className="mb-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-2">
@@ -146,21 +148,21 @@ export default function Ticket({
                     Blockchain Ticket
                   </span>
                 </div>
-                <div className="w-10 h-10 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
+                <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
                   <img
                     src="/favicon.png"
                     alt="Logo"
-                    className="w-6 h-6 object-contain"
+                    className="w-5 h-5 object-contain"
                   />
                 </div>
               </div>
 
-              <h1 className="text-2xl font-bold text-white mb-2 leading-tight">
+              <h1 className="text-xl font-bold text-white mb-2 leading-tight">
                 {eventTitle}
               </h1>
               <div className="flex items-center space-x-2">
                 <Shield className="w-3 h-3 text-blue-400" />
-                <p className="text-gray-300 text-sm">
+                <p className="text-gray-300 text-xs">
                   Organized by{" "}
                   <span className="text-orange-400 font-medium">
                     {organizerName}
@@ -169,17 +171,17 @@ export default function Ticket({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-1 gap-2 mb-4">
               <div className="group">
-                <div className="flex items-center space-x-2 p-3 rounded-lg bg-gray-700/20 border border-gray-600/30 group-hover:border-orange-500/30 transition-all duration-300">
-                  <div className="w-8 h-8 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
-                    <Calendar className="w-4 h-4 text-orange-400" />
+                <div className="flex items-center space-x-2 p-2 rounded-lg bg-gray-700/20 border border-gray-600/30 group-hover:border-orange-500/30 transition-all duration-300">
+                  <div className="w-6 h-6 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
+                    <Calendar className="w-3 h-3 text-orange-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-400 text-xs uppercase tracking-wide">
                       Date
                     </p>
-                    <p className="text-white font-semibold text-sm truncate">
+                    <p className="text-white font-semibold text-xs truncate">
                       {eventDate}
                     </p>
                   </div>
@@ -187,15 +189,15 @@ export default function Ticket({
               </div>
 
               <div className="group">
-                <div className="flex items-center space-x-2 p-3 rounded-lg bg-gray-700/20 border border-gray-600/30 group-hover:border-orange-500/30 transition-all duration-300">
-                  <div className="w-8 h-8 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
-                    <Calendar className="w-4 h-4 text-orange-400" />
+                <div className="flex items-center space-x-2 p-2 rounded-lg bg-gray-700/20 border border-gray-600/30 group-hover:border-orange-500/30 transition-all duration-300">
+                  <div className="w-6 h-6 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
+                    <Calendar className="w-3 h-3 text-orange-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-400 text-xs uppercase tracking-wide">
                       Time
                     </p>
-                    <p className="text-white font-semibold text-sm truncate">
+                    <p className="text-white font-semibold text-xs truncate">
                       {eventTime}
                     </p>
                   </div>
@@ -203,15 +205,15 @@ export default function Ticket({
               </div>
 
               <div className="group">
-                <div className="flex items-center space-x-2 p-3 rounded-lg bg-gray-700/20 border border-gray-600/30 group-hover:border-orange-500/30 transition-all duration-300">
-                  <div className="w-8 h-8 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-4 h-4 text-orange-400" />
+                <div className="flex items-center space-x-2 p-2 rounded-lg bg-gray-700/20 border border-gray-600/30 group-hover:border-orange-500/30 transition-all duration-300">
+                  <div className="w-6 h-6 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-3 h-3 text-orange-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-400 text-xs uppercase tracking-wide">
                       Venue
                     </p>
-                    <p className="text-white font-semibold text-sm truncate">
+                    <p className="text-white font-semibold text-xs truncate">
                       {location}
                     </p>
                   </div>
@@ -219,15 +221,15 @@ export default function Ticket({
               </div>
 
               <div className="group">
-                <div className="flex items-center space-x-2 p-3 rounded-lg bg-gray-700/20 border border-gray-600/30 group-hover:border-orange-500/30 transition-all duration-300">
-                  <div className="w-8 h-8 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-orange-400" />
+                <div className="flex items-center space-x-2 p-2 rounded-lg bg-gray-700/20 border border-gray-600/30 group-hover:border-orange-500/30 transition-all duration-300">
+                  <div className="w-6 h-6 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
+                    <User className="w-3 h-3 text-orange-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-400 text-xs uppercase tracking-wide">
                       Attendee
                     </p>
-                    <p className="text-white font-semibold text-sm truncate">
+                    <p className="text-white font-semibold text-xs truncate">
                       {userName}
                     </p>
                   </div>
@@ -235,58 +237,91 @@ export default function Ticket({
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex-1 mr-4">
-                <div className="flex items-center space-x-2 p-3 rounded-lg bg-gray-700/20 border border-gray-600/30">
-                  <div className="w-8 h-8 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
-                    <Wallet className="w-4 h-4 text-orange-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-gray-400 text-xs uppercase tracking-wide">
-                      Wallet
-                    </p>
-                    <p className="text-white font-semibold font-mono text-sm truncate">
-                      {userWallet}
-                    </p>
-                  </div>
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 p-2 rounded-lg bg-gray-700/20 border border-gray-600/30">
+                <div className="w-6 h-6 bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-md flex items-center justify-center flex-shrink-0">
+                  <Wallet className="w-3 h-3 text-orange-400" />
                 </div>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  {qrImage ? (
-                    <img
-                      src={qrImage}
-                      alt="QR"
-                      className="w-16 h-16 rounded-lg border border-gray-300 p-1 bg-white object-contain"
-                    />
-                  ) : qrPattern ? (
-                    <div className="grid grid-cols-8 gap-[1px] w-16 h-16 bg-white p-1 rounded-lg border border-gray-300">
-                      {qrPattern.flat().map((cell, i) => (
-                        <div
-                          key={i}
-                          className={`w-full aspect-square ${
-                            cell ? "bg-black" : "bg-white"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg bg-gray-300 animate-pulse" />
-                  )}
-
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                    <Shield className="w-2 h-2 text-white" />
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-gray-400 text-xs uppercase tracking-wide">
+                    Wallet
+                  </p>
+                  <p className="text-white font-semibold font-mono text-xs truncate">
+                    {userWallet}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-orange-500/5 to-transparent rounded-full -translate-y-12 translate-x-12"></div>
           </div>
+
+          {/* Right section - QR Code (enlarged) */}
+          <div className="w-1/3 p-6 flex flex-col items-center justify-center relative">
+            <div className="relative">
+              <div className="mb-3 text-center">
+                <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">
+                  Verification Code
+                </p>
+                <p className="text-orange-400 text-xs font-semibold">
+                  Scan to Verify
+                </p>
+              </div>
+              
+              {qrImage ? (
+                <div className="relative">
+                  <img
+                    src={qrImage}
+                    alt="QR Code"
+                    className="w-50 h-50 rounded-xl border-2 border-gray-300 p-2 bg-white object-contain shadow-lg"
+                  />
+                  <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center shadow-lg">
+                    <Shield className="w-3 h-3 text-white" />
+                  </div>
+                </div>
+              ) : qrPattern ? (
+                <div className="relative">
+                  <div className="grid grid-cols-12 gap-[1px] w-32 h-32 bg-white p-2 rounded-xl border-2 border-gray-300 shadow-lg">
+                    {qrPattern.flat().map((cell, i) => (
+                      <div
+                        key={i}
+                        className={`w-full aspect-square rounded-[1px] ${
+                          cell ? "bg-black" : "bg-white"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center shadow-lg">
+                    <Shield className="w-3 h-3 text-white" />
+                  </div>
+                </div>
+              ) : (
+                <div className="w-32 h-32 rounded-xl bg-gray-300 animate-pulse shadow-lg" />
+              )}
+            </div>
+            
+            <div className="mt-4 text-center">
+              <p className="text-gray-500 text-xs">
+                Secured by blockchain technology
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="absolute left-2/5 top-0 bottom-0 w-px">
+        {/* Decorative perforations */}
+        <div className="absolute left-1/3 top-0 bottom-0 w-px">
+          <div className="h-full bg-gradient-to-b from-gray-600/50 via-gray-500/30 to-gray-600/50 relative">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-3 h-3 bg-gray-800 rounded-full border border-gray-600/50 -translate-x-1.5 shadow-lg"
+                style={{ top: `${(i + 1) * 8}%` }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="absolute left-2/3 top-0 bottom-0 w-px">
           <div className="h-full bg-gradient-to-b from-gray-600/50 via-gray-500/30 to-gray-600/50 relative">
             {Array.from({ length: 12 }).map((_, i) => (
               <div
