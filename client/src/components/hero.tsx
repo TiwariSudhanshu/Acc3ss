@@ -83,15 +83,14 @@ async function handleGetStarted() {
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-purple-200 to-pink-200 bg-clip-text text-transparent">
-            Events that people{" "}
+            Access Isn’t Given. It’s {" "}
             <span className="bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
-              own
+              Minted.
             </span>
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
-            Create unforgettable events with NFT-based tickets. Secure,
-            verifiable, and truly owned by your attendees.
+           Experience events like never before — with true ownership, transparency, and security powered by NFTs.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
