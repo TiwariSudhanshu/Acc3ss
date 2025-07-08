@@ -1,7 +1,14 @@
 "use client";
-import { Calendar, MapPin, Users, Search, Plus, User } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Search,
+  Plus,
+  User,
+  RefreshCw,
+} from "lucide-react";
 import type React from "react";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSelector } from "react-redux";
@@ -116,7 +123,6 @@ export default function ExploreEvents() {
     maxTickets?: number
   ) => {
     if (!startDateTime) return "Coming Soon";
-
     const now = new Date();
     const start = new Date(startDateTime);
     const end = endDateTime ? new Date(endDateTime) : null;
@@ -134,7 +140,6 @@ export default function ExploreEvents() {
 
   async function getEvents() {
     setLoading(true);
-
     try {
       const contract = await getContract();
       const lastIdBn = await contract.nextEventId();
@@ -151,7 +156,6 @@ export default function ExploreEvents() {
       setEvents(cachedEvents);
 
       const newEvents: Event[] = [];
-
       for (let i = cachedEvents.length; i < lastId; i++) {
         try {
           const eventData = await contract.getEventDetails(i.toString());
@@ -263,20 +267,46 @@ export default function ExploreEvents() {
     getEvents();
   }, []);
 
-  // Filter events based on search term and category
-  const filteredEvents = events.filter((event) => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch =
-      event.title.toLowerCase().includes(searchLower) ||
-      event.location.toLowerCase().includes(searchLower) ||
-      event.category.toLowerCase().includes(searchLower) ||
-      event.date.toLowerCase().includes(searchLower);
+  // Sort events: latest first, ended events last
+  const sortEvents = (events: Event[]) => {
+    return events.sort((a, b) => {
+      // First, sort by status - ended events go to the bottom
+      if (a.status === "Ended" && b.status !== "Ended") return 1;
+      if (b.status === "Ended" && a.status !== "Ended") return -1;
 
-    const matchesCategory =
-      selectedCategory === "All" || event.category === selectedCategory;
+      // If both are ended or both are not ended, sort by date (latest first)
+      if (a.startDateTime && b.startDateTime) {
+        return (
+          new Date(b.startDateTime).getTime() -
+          new Date(a.startDateTime).getTime()
+        );
+      }
 
-    return matchesSearch && matchesCategory;
-  });
+      // If one has no date, put it at the end
+      if (!a.startDateTime && b.startDateTime) return 1;
+      if (a.startDateTime && !b.startDateTime) return -1;
+
+      // If neither has a date, maintain original order
+      return 0;
+    });
+  };
+
+  // Filter and sort events based on search term and category
+  const filteredEvents = sortEvents(
+    events.filter((event) => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch =
+        event.title.toLowerCase().includes(searchLower) ||
+        event.location.toLowerCase().includes(searchLower) ||
+        event.category.toLowerCase().includes(searchLower) ||
+        event.date.toLowerCase().includes(searchLower);
+
+      const matchesCategory =
+        selectedCategory === "All" || event.category === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    })
+  );
 
   // Handle event card click - redirect to event detail page
   const handleEventClick = (eventId: number) => {
@@ -326,7 +356,6 @@ export default function ExploreEvents() {
               Discover amazing Web3 events happening around the world
             </p>
           </div>
-
           {/* Profile Picture and Create Event Button */}
           <div className="flex items-center gap-4">
             <button
@@ -341,7 +370,6 @@ export default function ExploreEvents() {
               <Plus className="w-5 h-5" />
               {isCreatingEvent ? "Creating..." : "Create Event"}
             </button>
-
             <button
               onClick={handleProfileClick}
               disabled={isNavigatingToProfile}
@@ -381,23 +409,34 @@ export default function ExploreEvents() {
               />
             </div>
           </div>
+          <div className="flex justify-between items-center flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  disabled={loading}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    category === selectedCategory
+                      ? "bg-gradient-to-r from-orange-500 to-red-600 text-white"
+                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
 
-          {/* Category Filters */}
-          <div className="flex flex-wrap gap-3">
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                disabled={loading}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  category === selectedCategory
-                    ? "bg-gradient-to-r from-orange-500 to-red-600 text-white"
-                    : "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                {category}
-              </button>
-            ))}
+            <button
+              onClick={refreshEvents}
+              disabled={loading}
+              className="flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+              />
+              Refresh Onchain
+            </button>
           </div>
         </div>
 
@@ -461,12 +500,10 @@ export default function ExploreEvents() {
                     </span>
                   </div>
                 </div>
-
                 <div className="p-6">
                   <h3 className="text-xl font-bold text-white mb-3 group-hover:text-orange-400 transition-colors">
                     {event.title}
                   </h3>
-
                   <div className="space-y-2 mb-4">
                     <div className="flex items-center text-gray-300 text-sm">
                       <Calendar className="w-4 h-4 mr-2 text-orange-400" />
@@ -482,7 +519,6 @@ export default function ExploreEvents() {
                       {(event.maxTickets || 0).toLocaleString()} tickets
                     </div>
                   </div>
-
                   <div className="flex items-center justify-between">
                     <div className="text-2xl font-bold text-white">
                       {event.price}
@@ -541,21 +577,6 @@ export default function ExploreEvents() {
             )}
           </div>
         )}
-
-        {/* Load More - only show if there are results and no filters applied */}
-        {filteredEvents.length > 0 &&
-          !searchTerm &&
-          selectedCategory === "All" && (
-            <div className="text-center mt-12">
-              <button
-                onClick={refreshEvents}
-                disabled={loading}
-                className="border border-gray-600 text-white hover:bg-gray-800 px-8 py-3 text-lg bg-transparent rounded-lg font-medium transition-all duration-200 disabled:opacity-50"
-              >
-                {loading ? "Refreshing..." : "Refresh Events Onchain"}
-              </button>
-            </div>
-          )}
       </div>
     </div>
   );

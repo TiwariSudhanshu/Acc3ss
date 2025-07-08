@@ -1,6 +1,6 @@
 import Header from "@/components/header"
 import Footer from "@/components/footer"
-import ProfileDashboard from "@/components/profile-dashboard"
+import ProfileDashboard from "@/components/profileComponents/profile-dashboard"
 
 export default function ExplorePage() {
   return (

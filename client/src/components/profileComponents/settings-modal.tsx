@@ -14,7 +14,7 @@ interface SettingsModalProps {
     name: string
     email: string
     walletAddress: string
-    avatar: string
+    profilePicture: string
   }
 }
 
@@ -24,7 +24,7 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
     name: user.name,
     email: user.email,
   })
-  const [profilePicture, setProfilePicture] = useState(user.avatar)
+  const [profilePicture, setProfilePicture] = useState(user.profilePicture)
   const [loading, setLoading] = useState(false)
   const [formLoading, setFormLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)

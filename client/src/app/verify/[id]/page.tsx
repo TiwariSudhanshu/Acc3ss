@@ -1,5 +1,4 @@
 "use client"
-
 import { useEffect, useRef, useState } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 import { useParams, useRouter } from "next/navigation"
@@ -29,8 +28,7 @@ interface TicketEntry {
   name: string
   profilePicture: string
   walletAddress: string
-  verified?: boolean
-  verifiedAt?: string
+  status: "checked-in" | "pending" // Only two states
   checkInTime?: string
 }
 
@@ -40,6 +38,7 @@ interface Attendee {
   profilePicture: string
   ticketsOwned: string[]
   walletAddress: string
+  eventsAttended: string[]
 }
 
 interface EventDetails {
@@ -69,7 +68,7 @@ export default function VerifyEventPage() {
   const [ticketEntries, setTicketEntries] = useState<TicketEntry[]>([])
   const [filteredTicketEntries, setFilteredTicketEntries] = useState<TicketEntry[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [filterStatus, setFilterStatus] = useState<"all" | "verified" | "pending">("all")
+  const [filterStatus, setFilterStatus] = useState<"all" | "checked-in" | "pending">("all")
   const [isLoading, setIsLoading] = useState(true)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false)
@@ -80,7 +79,7 @@ export default function VerifyEventPage() {
   const [accessGranted, setAccessGranted] = useState(false)
   const [stats, setStats] = useState({
     total: 0,
-    verified: 0,
+    checkedIn: 0,
     pending: 0,
   })
 
@@ -109,7 +108,6 @@ export default function VerifyEventPage() {
         const html5QrCode = new Html5Qrcode("qr-reader")
         scannerRef.current = html5QrCode
         const devices = await Html5Qrcode.getCameras()
-
         if (devices && devices.length > 0) {
           const cameraId = devices[0].id
           await html5QrCode.start(
@@ -202,32 +200,46 @@ export default function VerifyEventPage() {
         },
         body: JSON.stringify({
           ticketIds: matchedTickets,
+          eventId: eventId,
         }),
       })
 
       const data = await res.json()
       if (res.ok) {
         const ticketEntriesData: TicketEntry[] = []
+        let checkedInCount = 0
+        let pendingCount = 0
+
         data.attendees.forEach((attendee: Attendee) => {
           attendee.ticketsOwned.forEach((ticketId: string) => {
+            // Check if user has already attended this event
+            const hasAttended = attendee.eventsAttended.includes(eventId)
+            const status: "checked-in" | "pending" = hasAttended ? "checked-in" : "pending"
+
+            if (hasAttended) {
+              checkedInCount++
+            } else {
+              pendingCount++
+            }
+
             ticketEntriesData.push({
               ticketId,
               email: attendee.email,
               name: attendee.name,
               profilePicture: attendee.profilePicture,
               walletAddress: attendee.walletAddress,
-              verified: false,
+              status: status,
+              checkInTime: hasAttended ? new Date().toLocaleString() : undefined,
             })
           })
         })
 
         setTicketEntries(ticketEntriesData)
         setFilteredTicketEntries(ticketEntriesData)
-
         setStats({
           total: ticketEntriesData.length,
-          verified: 0,
-          pending: ticketEntriesData.length,
+          checkedIn: checkedInCount,
+          pending: pendingCount,
         })
       } else {
         console.error("Error fetching attendees:", data.error)
@@ -253,7 +265,7 @@ export default function VerifyEventPage() {
     }
 
     if (filterStatus !== "all") {
-      filtered = filtered.filter((ticket) => (filterStatus === "verified" ? ticket.verified : !ticket.verified))
+      filtered = filtered.filter((ticket) => ticket.status === filterStatus)
     }
 
     return filtered
@@ -265,7 +277,7 @@ export default function VerifyEventPage() {
     setFilteredTicketEntries(filtered)
   }
 
-  const handleStatusFilter = (status: "all" | "verified" | "pending") => {
+  const handleStatusFilter = (status: "all" | "checked-in" | "pending") => {
     setFilterStatus(status)
     const filtered = applyFilters(ticketEntries)
     setFilteredTicketEntries(filtered)
@@ -314,7 +326,6 @@ export default function VerifyEventPage() {
     try {
       const contract = await getContract()
       const ticket = ticketEntries.find((t) => t.walletAddress === walletAddress || t.ticketId === ticketId)
-
       const eventIdOfTicket = await contract.tokenToEvent(ticketId)
       const isMatch = eventIdOfTicket.toString() === eventId.toString()
 
@@ -344,7 +355,6 @@ export default function VerifyEventPage() {
     try {
       // Show verification modal with loading state
       setIsVerificationModalOpen(true)
-
       const result = await decryptQR(data)
       if (!result) {
         throw new Error("Invalid QR code format!")
@@ -352,7 +362,6 @@ export default function VerifyEventPage() {
 
       const { walletAddress, ticketId } = result
       const ticket = await verifyTicketData(walletAddress, ticketId)
-
       setSelectedTicket(ticket)
       toast.success("QR code verified successfully!")
     } catch (error) {
@@ -383,6 +392,7 @@ export default function VerifyEventPage() {
         body: JSON.stringify({
           ticketId: selectedTicket.ticketId,
           walletAddress: selectedTicket.walletAddress,
+          eventId: eventId,
         }),
       })
 
@@ -393,7 +403,11 @@ export default function VerifyEventPage() {
         // Update ticket status in local state
         const updatedTickets = ticketEntries.map((ticket) =>
           ticket.ticketId === selectedTicket.ticketId
-            ? { ...ticket, verified: true, verifiedAt: new Date().toISOString() }
+            ? {
+                ...ticket,
+                status: "checked-in" as const,
+                checkInTime: new Date().toLocaleString(),
+              }
             : ticket,
         )
         setTicketEntries(updatedTickets)
@@ -402,7 +416,7 @@ export default function VerifyEventPage() {
         // Update stats
         setStats((prev) => ({
           ...prev,
-          verified: prev.verified + 1,
+          checkedIn: prev.checkedIn + 1,
           pending: prev.pending - 1,
         }))
 
@@ -445,7 +459,7 @@ export default function VerifyEventPage() {
               `"${ticket.email}"`,
               `"${ticket.walletAddress}"`,
               `"${ticket.ticketId}"`,
-              `"${ticket.verified ? "Verified" : "Pending"}"`,
+              `"${ticket.status === "checked-in" ? "Checked In" : "Pending"}"`,
               `"${ticket.checkInTime || "Not checked in"}"`,
             ].join(","),
           ),
@@ -477,13 +491,11 @@ export default function VerifyEventPage() {
     const loadData = async () => {
       setIsLoading(true)
       const eventFound = getEventFromCache()
-
       if (!eventFound) {
         toast.error("Event not found in cache")
         setIsLoading(false)
         return
       }
-
       await handleGetAttendees()
       setIsLoading(false)
     }
@@ -598,8 +610,8 @@ export default function VerifyEventPage() {
           <div className="bg-gray-800/50 rounded-xl border border-gray-700 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-400 text-sm">Verified</p>
-                <p className="text-3xl font-bold text-green-400">{stats.verified}</p>
+                <p className="text-gray-400 text-sm">Checked In</p>
+                <p className="text-3xl font-bold text-green-400">{stats.checkedIn}</p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-400" />
             </div>
@@ -635,11 +647,11 @@ export default function VerifyEventPage() {
               </div>
               <select
                 value={filterStatus}
-                onChange={(e) => handleStatusFilter(e.target.value as "all" | "verified" | "pending")}
+                onChange={(e) => handleStatusFilter(e.target.value as "all" | "checked-in" | "pending")}
                 className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
                 <option value="all">All Status</option>
-                <option value="verified">Verified</option>
+                <option value="checked-in">Checked In</option>
                 <option value="pending">Pending</option>
               </select>
               {(searchQuery || filterStatus !== "all") && (
@@ -708,16 +720,14 @@ export default function VerifyEventPage() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">
-                      {ticket.verified ? (
+                      {ticket.status === "checked-in" ? (
                         <div className="flex items-center space-x-3">
                           <div className="text-right">
                             <div className="flex items-center text-green-400 text-sm font-medium">
                               <CheckCircle className="w-4 h-4 mr-1" />
-                              Verified
+                              Checked In
                             </div>
-                            {ticket.verifiedAt && (
-                              <p className="text-xs text-gray-500">{new Date(ticket.verifiedAt).toLocaleString()}</p>
-                            )}
+                            {ticket.checkInTime && <p className="text-xs text-gray-500">{ticket.checkInTime}</p>}
                           </div>
                         </div>
                       ) : (
@@ -821,38 +831,48 @@ export default function VerifyEventPage() {
                     Wallet: {selectedTicket.walletAddress.slice(0, 12)}...{selectedTicket.walletAddress.slice(-8)}
                   </p>
 
-                  <div className="flex space-x-3 mt-6">
-                    <button
-                      onClick={handleRejectAccess}
-                      disabled={isProcessing || accessGranted}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors flex items-center"
-                    >
-                      <UserX className="w-4 h-4 mr-1" />
-                      Reject
-                    </button>
-                    <button
-                      onClick={handleGrantAccess}
-                      disabled={isProcessing || accessGranted}
-                      className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center"
-                    >
-                      {accessGranted ? (
-                        <>
-                          <CheckCircle className="w-5 h-5 mr-2 text-green-300" />
-                          Access Granted!
-                        </>
-                      ) : isProcessing ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <UserCheck className="w-5 h-5 mr-2" />
-                          Grant Access
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  {selectedTicket.status === "checked-in" ? (
+                    <div className="mt-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                      <div className="flex items-center justify-center text-green-400 mb-2">
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                        <span className="font-medium">Checked In</span>
+                      </div>
+                      <p className="text-sm text-gray-400">This user has been checked in.</p>
+                    </div>
+                  ) : (
+                    <div className="flex space-x-3 mt-6">
+                      <button
+                        onClick={handleRejectAccess}
+                        disabled={isProcessing || accessGranted}
+                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors flex items-center"
+                      >
+                        <UserX className="w-4 h-4 mr-1" />
+                        Reject
+                      </button>
+                      <button
+                        onClick={handleGrantAccess}
+                        disabled={isProcessing || accessGranted}
+                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center"
+                      >
+                        {accessGranted ? (
+                          <>
+                            <CheckCircle className="w-5 h-5 mr-2 text-green-300" />
+                            Access Granted!
+                          </>
+                        ) : isProcessing ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-5 h-5 mr-2" />
+                            Grant Access
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>

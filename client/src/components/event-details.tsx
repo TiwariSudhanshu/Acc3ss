@@ -607,10 +607,7 @@ export default function EventDetails() {
                       : "Buy Ticket"}
                 </button>
                 <div className="flex space-x-3">
-                  <button className="flex-1 border border-gray-600 text-white hover:bg-gray-800 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center">
-                    <Heart className="w-5 h-5 mr-2" />
-                    Save
-                  </button>
+               
                   <button
                     onClick={() => setShareModalOpen(true)}
                     className="flex-1 border border-gray-600 text-white hover:bg-gray-800 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center"

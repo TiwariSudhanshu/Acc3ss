@@ -6,6 +6,7 @@ interface UserState {
   walletAddress: string;
   profilePicture: string;
   ticketsOwned: string[];
+  eventsAttended: string[];
   eventsCreated: string[];
   isLoggedIn: boolean;
 }
@@ -17,6 +18,7 @@ const initialState: UserState = {
   profilePicture:
     "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
   ticketsOwned: [],
+  eventsAttended: [],
   eventsCreated: [],
   isLoggedIn: false,
 };
