@@ -410,7 +410,7 @@ export default function CreateEventForm() {
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-gray-700/50 border border-gray-600 rounded-xl px-6 py-4 text-white focus:border-orange-500 focus:outline-none transition-colors text-lg"
+                    className="w-full bg-[#090d12] border border-gray-600 rounded-xl px-6 py-4 text-white focus:border-orange-500 focus:outline-none transition-colors text-lg"
                     required
                   >
                     <option value="">Select category</option>

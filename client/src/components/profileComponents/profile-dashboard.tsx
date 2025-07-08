@@ -47,7 +47,7 @@ interface IPFSMetadata {
   eventName?: string
   description?: string
   category?: string
-  bannerImage?: string
+  image?: string
   location?: string
   startDateTime?: string
   endDateTime?: string
@@ -139,7 +139,7 @@ export default function ProfileDashboard() {
         events.push({
           id: Number.parseInt(eventId),
           title: metadata?.eventName || event.name,
-          image: metadata?.bannerImage ? convertIPFSToHTTP(metadata.bannerImage) : "/placeholder.svg",
+          image: metadata?.image ? convertIPFSToHTTP(metadata.image) : "/placeholder.svg",
           date: dateTime.date,
           time: dateTime.time,
           location: metadata?.location || "TBD",
@@ -175,7 +175,7 @@ export default function ProfileDashboard() {
         events.push({
           id: Number.parseInt(eventId),
           title: metadata?.eventName || event.name,
-          image: metadata?.bannerImage ? convertIPFSToHTTP(metadata.bannerImage) : "/placeholder.svg",
+          image: metadata?.image ? convertIPFSToHTTP(metadata.image) : "/placeholder.svg",
           date: dateTime.date,
           time: dateTime.time,
           location: metadata?.location || "TBD",
@@ -236,7 +236,7 @@ export default function ProfileDashboard() {
         id: Number.parseInt(eventId),
         title: metadata?.eventName || event.name,
         ticketId: Number(ticket),
-        image: metadata?.bannerImage ? convertIPFSToHTTP(metadata.bannerImage) : "/placeholder.svg",
+        image: metadata?.image ? convertIPFSToHTTP(metadata.image) : "/placeholder.svg",
         date: dateTime.date,
         time: dateTime.time,
         location: metadata?.location || "TBD",

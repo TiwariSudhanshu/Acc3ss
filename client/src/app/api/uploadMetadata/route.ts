@@ -13,6 +13,14 @@ function cleanMetadata(obj: Record<string, any>) {
   );
 }
 
+const convertIPFSToHTTP = (ipfsUri: string): string => {
+  if (ipfsUri?.startsWith("ipfs://")) {
+    return ipfsUri.replace("ipfs://", "https://lavender-tremendous-deer-798.mypinata.cloud/ipfs/");
+  }
+  return ipfsUri || "/placeholder.svg";
+};
+
+
 export async function POST(req: NextRequest) {
   try {
     const data = await req.formData();
@@ -31,7 +39,8 @@ export async function POST(req: NextRequest) {
     const agenda = data.get("agenda") as string;
 
     const { cid: imageCID } = await pinata.upload.public.file(file);
-    const imageUrl = `ipfs://${imageCID}`;
+    const imageUrl = convertIPFSToHTTP(`ipfs://${imageCID}`);
+
 
     let speakers = [];
     try {
@@ -72,7 +81,7 @@ const processedSpeakers = await Promise.all(
       eventName,
       description,
       category,
-      bannerImage: imageUrl,
+      image: imageUrl,
       location,
       startDateTime,
       endDateTime,

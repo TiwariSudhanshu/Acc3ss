@@ -26,6 +26,10 @@ const UserSchema = new mongoose.Schema({
     eventsCreated: [{
         type: String
     }],
+    eventTicketPurchased: [{
+        type: String,
+        default: []
+    }],
     eventsAttended: [{
         type: String,
         default: []

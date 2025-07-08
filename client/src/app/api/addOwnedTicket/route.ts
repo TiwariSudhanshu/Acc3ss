@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { ticketId, walletAddress } = await request.json();
+    const { ticketId, eventId, walletAddress } = await request.json();
     console.log("Received data:", { ticketId, walletAddress });
     await User.findOneAndUpdate(
       { walletAddress },
-      { $addToSet: { ticketsOwned: ticketId } },
+      { $addToSet: { ticketsOwned: ticketId, eventTicketPurchased: eventId }},
       { new: true, upsert: true }
     );
 

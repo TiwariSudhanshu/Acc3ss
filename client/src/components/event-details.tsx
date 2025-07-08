@@ -1,12 +1,14 @@
 "use client"
+
 import { getContract } from "@/contract/contract"
-import { Calendar, MapPin, Users, Clock, Share2, Heart, Shield, Zap, Trophy, Mail } from "lucide-react"
+import { Calendar, MapPin, Users, Clock, Share2, Shield, Zap, Trophy, Mail } from "lucide-react"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { formatEther } from "ethers"
 import ShareModal from "./share-model"
 import BuyTicketModal from "./buy-ticket-modal"
+import { useAccount } from "wagmi"
 
 interface Speaker {
   id: string
@@ -65,7 +67,7 @@ interface IPFSMetadata {
   eventName?: string
   description?: string
   category?: string
-  bannerImage?: string
+  image?: string
   location?: string
   startDateTime?: string
   endDateTime?: string
@@ -85,6 +87,9 @@ export default function EventDetails() {
   const [eventData, setEventData] = useState<EventData | null>(null)
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [buyTicketModalOpen, setBuyTicketModalOpen] = useState(false)
+  const { address } = useAccount()
+  const [purchaseStatus, setPurchaseStatus] = useState(false)
+  const [checkingPurchase, setCheckingPurchase] = useState(false)
 
   // Convert IPFS URI to HTTP URL
   const convertIPFSToHTTP = (ipfsUri: string): string => {
@@ -104,11 +109,9 @@ export default function EventDetails() {
         },
         body: JSON.stringify({ walletAddress }),
       })
-
       if (!res.ok) {
         throw new Error("Failed to fetch organizer details")
       }
-
       const data = await res.json()
       return {
         name: data.profile.name || "Event Organizer",
@@ -124,6 +127,53 @@ export default function EventDetails() {
     } finally {
       setOrganizerLoading(false)
     }
+  }
+
+  // Modified checkPurchase function - separated logic for initial check vs button click
+  const checkPurchaseStatus = async (openModalIfNotPurchased = false) => {
+    if (!address) return false
+
+    setCheckingPurchase(true)
+    try {
+      const res = await fetch("/api/checkPurchase", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ walletAddress: address, eventId: id }),
+      })
+      if (!res.ok) {
+        throw new Error("Failed to check purchase")
+      }
+      const data = await res.json()
+
+      if (!data.hasPurchased) {
+        setPurchaseStatus(false)
+        if (openModalIfNotPurchased) {
+          setBuyTicketModalOpen(true)
+        }
+        return false
+      } else {
+        setPurchaseStatus(true)
+        if (openModalIfNotPurchased) {
+          toast.success("You have already purchased a ticket for this event!")
+        }
+        return true
+      }
+    } catch (error) {
+      console.error("Error checking purchase:", error)
+      if (openModalIfNotPurchased) {
+        toast.error("Failed to check purchase status")
+      }
+      return false
+    } finally {
+      setCheckingPurchase(false)
+    }
+  }
+
+  // Function to handle buy ticket button click
+  const handleBuyTicketClick = () => {
+    checkPurchaseStatus(true)
   }
 
   // Fetch IPFS metadata
@@ -165,11 +215,9 @@ export default function EventDetails() {
   // Determine event status
   const getEventStatus = (startDateTime?: string, endDateTime?: string, totalSold?: number, maxTickets?: number) => {
     if (!startDateTime) return "Coming Soon"
-
     const now = new Date()
     const start = new Date(startDateTime)
     const end = endDateTime ? new Date(endDateTime) : null
-
     if (now >= start && (!end || now <= end)) {
       return "Live"
     } else if (end && now > end) {
@@ -185,7 +233,6 @@ export default function EventDetails() {
   const parseAgenda = (agenda: string | AgendaItem[] | undefined): AgendaItem[] => {
     if (!agenda) return []
     if (Array.isArray(agenda)) return agenda
-
     try {
       // Try to parse as JSON first
       const parsed = JSON.parse(agenda)
@@ -202,7 +249,6 @@ export default function EventDetails() {
         }
       })
     }
-
     return []
   }
 
@@ -217,12 +263,10 @@ export default function EventDetails() {
 
   const getEventData = async (eventId: string) => {
     setLoading(true)
-
     // Try getting event from cache
     const cached = localStorage.getItem("events")
     const cachedEvents: EventData[] = cached ? JSON.parse(cached) : []
     const cachedEvent = cachedEvents.find((e) => e.id === Number(eventId))
-
     if (cachedEvent) {
       setEventData(cachedEvent)
     }
@@ -244,6 +288,7 @@ export default function EventDetails() {
           Number(totalTicketsSold),
           Number(maxTickets),
         )
+
         const parsedAgenda = parseAgenda(metadata.agenda)
         const requirements = parseListItems(metadata.requirementsToAttend)
         const perks = parseListItems(metadata.whatsIncluded)
@@ -258,7 +303,7 @@ export default function EventDetails() {
         const completeEventData: EventData = {
           id: Number(eventId),
           title: metadata.eventName || name,
-          banner: convertIPFSToHTTP(metadata.bannerImage || ""),
+          banner: convertIPFSToHTTP(metadata.image || ""),
           description: metadata.description,
           date: startDate.date,
           time: startDate.time,
@@ -288,7 +333,6 @@ export default function EventDetails() {
         }
 
         setEventData(completeEventData)
-
         // Replace or append to cachedEvents
         const updatedEvents = [...cachedEvents.filter((e) => e.id !== Number(eventId)), completeEventData]
         localStorage.setItem("events", JSON.stringify(updatedEvents))
@@ -331,7 +375,6 @@ export default function EventDetails() {
             verified: false,
           },
         }
-
         setEventData(fallbackData)
 
         const organizerDetails = await getOrganiserDetail(organizer)
@@ -349,7 +392,6 @@ export default function EventDetails() {
         // Add fallback to cache too
         const updatedEvents = [...cachedEvents.filter((e) => e.id !== Number(eventId)), fallbackData]
         localStorage.setItem("events", JSON.stringify(updatedEvents))
-
         toast.warning("Event loaded with limited data")
       }
     } catch (error) {
@@ -365,6 +407,13 @@ export default function EventDetails() {
       getEventData(id)
     }
   }, [id])
+
+  // Check purchase status when component mounts and address is available
+  useEffect(() => {
+    if (address && eventData && !loading) {
+      checkPurchaseStatus(false) // Don't open modal on initial check
+    }
+  }, [address, eventData, loading])
 
   if (loading) {
     return (
@@ -388,6 +437,41 @@ export default function EventDetails() {
   }
 
   const progressPercentage = (eventData.sold / eventData.totalSupply) * 100
+
+  // Determine button state and text
+  const getButtonState = () => {
+    if (eventData.status === "Sold Out" || eventData.status === "Ended") {
+      return {
+        disabled: true,
+        text: eventData.status === "Sold Out" ? "Sold Out" : "Event Ended",
+        className: "bg-gray-600 text-gray-400 cursor-not-allowed",
+      }
+    }
+
+    if (purchaseStatus) {
+      return {
+        disabled: true,
+        text: "Purchased",
+        className: "bg-gray-600 text-white cursor-not-allowed",
+      }
+    }
+
+    if (checkingPurchase) {
+      return {
+        disabled: true,
+        text: "Checking...",
+        className: "bg-gray-600 text-gray-400 cursor-not-allowed",
+      }
+    }
+
+    return {
+      disabled: false,
+      text: "Buy Ticket",
+      className: "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white",
+    }
+  }
+
+  const buttonState = getButtonState()
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900">
@@ -466,9 +550,7 @@ export default function EventDetails() {
                       className="flex items-start space-x-4 p-6 bg-gray-700/30 rounded-2xl"
                     >
                       <img
-                        src={
-                          // speaker.imageUrl || 
-                          "https://i.pinimg.com/736x/96/51/60/9651605860388437ea779e0a51ab5649.jpg"}
+                        src="https://i.pinimg.com/736x/96/51/60/9651605860388437ea779e0a51ab5649.jpg"
                         alt={speaker.name}
                         className="w-20 h-20 rounded-full object-cover flex-shrink-0"
                       />
@@ -586,28 +668,20 @@ export default function EventDetails() {
               <div className="space-y-4 mb-8">
                 <div className="flex justify-between text-gray-300">
                   <span>Network:</span>
-                  <span>Ethereum</span>
+                  <span>Ethereum Sepolia</span>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <button
-                  onClick={() => setBuyTicketModalOpen(true)}
-                  disabled={eventData.status === "Sold Out" || eventData.status === "Ended"}
-                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-200 ${
-                    eventData.status === "Sold Out" || eventData.status === "Ended"
-                      ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                      : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
-                  }`}
+                  onClick={handleBuyTicketClick}
+                  disabled={buttonState.disabled}
+                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-200 ${buttonState.className}`}
                 >
-                  {eventData.status === "Sold Out"
-                    ? "Sold Out"
-                    : eventData.status === "Ended"
-                      ? "Event Ended"
-                      : "Buy Ticket"}
+                  {buttonState.text}
                 </button>
+
                 <div className="flex space-x-3">
-               
                   <button
                     onClick={() => setShareModalOpen(true)}
                     className="flex-1 border border-gray-600 text-white hover:bg-gray-800 py-3 rounded-xl font-medium transition-all duration-200 flex items-center justify-center"

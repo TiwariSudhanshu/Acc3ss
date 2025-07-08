@@ -70,7 +70,7 @@ export default function BuyTicketModal({
      const response = await fetch("/api/addOwnedTicket", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticketId, walletAddress: address }),
+        body: JSON.stringify({ ticketId, walletAddress: address, eventId: eventData.id.toString() }),
       });
       if (!response.ok) {
         throw new Error("Failed to update owned tickets");
