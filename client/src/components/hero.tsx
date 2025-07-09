@@ -53,6 +53,7 @@ async function handleGetStarted() {
           ticketsOwned: data.user.ticketsOwned || [],
           eventsCreated: data.user.eventsCreated || [],
           eventsAttended: data.user.eventsAttended || [],
+          eventTicketPurchased: data.user.eventTicketPurchased || [],
         }));
       router.push("/explore");
     }

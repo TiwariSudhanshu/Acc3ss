@@ -8,6 +8,7 @@ interface UserState {
   ticketsOwned: string[];
   eventsAttended: string[];
   eventsCreated: string[];
+  eventTicketPurchased: string[];
   isLoggedIn: boolean;
 }
 
@@ -20,6 +21,7 @@ const initialState: UserState = {
   ticketsOwned: [],
   eventsAttended: [],
   eventsCreated: [],
+  eventTicketPurchased: [],
   isLoggedIn: false,
 };
 

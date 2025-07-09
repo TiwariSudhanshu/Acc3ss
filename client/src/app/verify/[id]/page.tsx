@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { getContract } from "@/contract/contract"
+import { useAccount } from "wagmi"
 
 interface TicketEntry {
   ticketId: string
@@ -28,7 +29,7 @@ interface TicketEntry {
   name: string
   profilePicture: string
   walletAddress: string
-  status: "checked-in" | "pending" // Only two states
+  status: "checked-in" | "pending" 
   checkInTime?: string
 }
 
@@ -62,7 +63,7 @@ export default function VerifyEventPage() {
   const params = useParams()
   const router = useRouter()
   const eventId = params.id as string
-
+  const {address} = useAccount();
   // State management
   const [eventDetails, setEventDetails] = useState<EventDetails | null>(null)
   const [ticketEntries, setTicketEntries] = useState<TicketEntry[]>([])
@@ -363,7 +364,6 @@ export default function VerifyEventPage() {
       const { walletAddress, ticketId } = result
       const ticket = await verifyTicketData(walletAddress, ticketId)
       setSelectedTicket(ticket)
-      toast.success("QR code verified successfully!")
     } catch (error) {
       console.error("Error in handleQRScan:", error)
       toast.error(error instanceof Error ? error.message : "Failed to process QR code")
@@ -475,7 +475,6 @@ export default function VerifyEventPage() {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
 
-      toast.success("Attendee list exported successfully!")
     } catch (error) {
       console.error("Export error:", error)
       toast.error("Failed to export attendee list")
@@ -521,6 +520,23 @@ export default function VerifyEventPage() {
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white mb-2">Event Not Found</h1>
           <p className="text-gray-400 mb-4">The event you're looking for doesn't exist in cache.</p>
+          <button
+            onClick={() => router.back()}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if(eventDetails.organizer.address?.toLowerCase() !== address?.toLowerCase()) {
+    return(
+      <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
           <button
             onClick={() => router.back()}
             className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors"

@@ -215,7 +215,7 @@ export default function ExploreEvents() {
       localStorage.setItem("events", JSON.stringify(mergedEvents))
 
       if (newEvents.length > 0) {
-        toast.success(`Successfully loaded ${newEvents.length} new events from blockchain!`)
+
       } else if (mergedEvents.length === 0) {
         toast.info("No events found on the blockchain yet.")
       }

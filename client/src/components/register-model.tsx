@@ -87,6 +87,8 @@ export default function RegisterModal({
             profilePicture: "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
             ticketsOwned: [],
             eventsCreated: [],
+            eventsAttended: [],
+            eventTicketPurchased: [],
           }));
         router.push("/explore");
       }, 2000)

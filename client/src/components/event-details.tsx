@@ -1,8 +1,8 @@
 "use client"
 
 import { getContract } from "@/contract/contract"
-import { Calendar, MapPin, Users, Clock, Share2, Shield, Zap, Trophy, Mail } from "lucide-react"
-import { useParams } from "next/navigation"
+import { Calendar, MapPin, Users, Clock, Share2, Shield, Zap, Trophy, Mail, Wallet } from "lucide-react"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { formatEther } from "ethers"
@@ -81,13 +81,15 @@ interface IPFSMetadata {
 
 export default function EventDetails() {
   const params = useParams()
+  const router = useRouter()
   const id = params.id as string
   const [loading, setLoading] = useState(true)
   const [organizerLoading, setOrganizerLoading] = useState(false)
   const [eventData, setEventData] = useState<EventData | null>(null)
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [buyTicketModalOpen, setBuyTicketModalOpen] = useState(false)
-  const { address } = useAccount()
+  const [walletConnectModalOpen, setWalletConnectModalOpen] = useState(false)
+  const { address, isConnected } = useAccount()
   const [purchaseStatus, setPurchaseStatus] = useState(false)
   const [checkingPurchase, setCheckingPurchase] = useState(false)
 
@@ -129,10 +131,9 @@ export default function EventDetails() {
     }
   }
 
-  // Modified checkPurchase function - separated logic for initial check vs button click
+  // Modified checkPurchase function - only runs when wallet is connected
   const checkPurchaseStatus = async (openModalIfNotPurchased = false) => {
-    if (!address) return false
-
+    if (!address || !isConnected) return false
     setCheckingPurchase(true)
     try {
       const res = await fetch("/api/checkPurchase", {
@@ -146,7 +147,6 @@ export default function EventDetails() {
         throw new Error("Failed to check purchase")
       }
       const data = await res.json()
-
       if (!data.hasPurchased) {
         setPurchaseStatus(false)
         if (openModalIfNotPurchased) {
@@ -171,9 +171,18 @@ export default function EventDetails() {
     }
   }
 
-  // Function to handle buy ticket button click
+  // Function to handle buy ticket button click with wallet connection check
   const handleBuyTicketClick = () => {
+    if (!isConnected || !address) {
+      setWalletConnectModalOpen(true)
+      return
+    }
     checkPurchaseStatus(true)
+  }
+
+  // Handle redirect to home page
+  const handleGoToHome = () => {
+    router.push("/")
   }
 
   // Fetch IPFS metadata
@@ -375,8 +384,8 @@ export default function EventDetails() {
             verified: false,
           },
         }
-        setEventData(fallbackData)
 
+        setEventData(fallbackData)
         const organizerDetails = await getOrganiserDetail(organizer)
         if (organizerDetails) {
           setEventData((prev) =>
@@ -408,12 +417,12 @@ export default function EventDetails() {
     }
   }, [id])
 
-  // Check purchase status when component mounts and address is available
+  // Check purchase status only when wallet is connected and event data is loaded
   useEffect(() => {
-    if (address && eventData && !loading) {
+    if (address && isConnected && eventData && !loading) {
       checkPurchaseStatus(false) // Don't open modal on initial check
     }
-  }, [address, eventData, loading])
+  }, [address, isConnected, eventData, loading])
 
   if (loading) {
     return (
@@ -447,7 +456,13 @@ export default function EventDetails() {
         className: "bg-gray-600 text-gray-400 cursor-not-allowed",
       }
     }
-
+    if (!isConnected || !address) {
+      return {
+        disabled: false,
+        text: "Connect Wallet to Buy",
+        className: "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white",
+      }
+    }
     if (purchaseStatus) {
       return {
         disabled: true,
@@ -455,7 +470,6 @@ export default function EventDetails() {
         className: "bg-gray-600 text-white cursor-not-allowed",
       }
     }
-
     if (checkingPurchase) {
       return {
         disabled: true,
@@ -463,7 +477,6 @@ export default function EventDetails() {
         className: "bg-gray-600 text-gray-400 cursor-not-allowed",
       }
     }
-
     return {
       disabled: false,
       text: "Buy Ticket",
@@ -680,7 +693,6 @@ export default function EventDetails() {
                 >
                   {buttonState.text}
                 </button>
-
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setShareModalOpen(true)}
@@ -753,6 +765,43 @@ export default function EventDetails() {
           </div>
         </div>
       </div>
+
+      {/* Wallet Connection Modal */}
+      {walletConnectModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <Wallet className="w-6 h-6 mr-3 text-orange-400" />
+              <h3 className="text-xl font-bold text-white">Connect Wallet Required</h3>
+            </div>
+            <p className="text-gray-300 mb-4">
+              You need to connect your MetaMask wallet to purchase tickets for this event.
+            </p>
+            <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-4 mb-6">
+              <p className="text-orange-200 text-sm font-medium mb-2">Why connect your wallet?</p>
+              <ul className="text-orange-200/80 text-sm space-y-1">
+                <li>• Purchase event tickets securely</li>
+                <li>• Verify ticket ownership</li>
+                <li>• Access exclusive holder benefits</li>
+              </ul>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setWalletConnectModalOpen(false)}
+                className="flex-1 border border-gray-600 text-gray-300 hover:bg-gray-800 py-3 rounded-lg font-medium transition-all duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGoToHome}
+                className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white py-3 rounded-lg font-medium transition-all duration-200"
+              >
+                Go to Home & Connect
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Share Modal */}
       <ShareModal isOpen={shareModalOpen} onClose={() => setShareModalOpen(false)} eventTitle={eventData.title} />
