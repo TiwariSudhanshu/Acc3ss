@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner"
 import { getContract } from "@/contract/contract"
 import { useAccount } from "wagmi"
+import { checkCorrectNetwork } from "@/contract/checkNetwork"
 
 interface TicketEntry {
   ticketId: string
@@ -86,6 +87,20 @@ export default function VerifyEventPage() {
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const isScannerInitialized = useRef(false)
+useEffect(() => {
+  const check = async () => {
+    const isCorrect = await checkCorrectNetwork();
+    if (!isCorrect) {
+      toast.warning("Please switch to Sepolia Testnet in MetaMask.", {
+          duration: Infinity,
+          dismissible: false,
+        });
+    }
+    
+  };
+
+  check();
+}, []);
 
   // QR Scanner initialization
   useEffect(() => {

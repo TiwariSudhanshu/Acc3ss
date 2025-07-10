@@ -88,8 +88,14 @@ export default function BuyTicketModal({
     dispatch(addTicketOwned(ticketId.toString()));
     toast.success("Ticket purchased successfully");
     onClose();
-  } catch (error) {
+  } catch (error:any) {
     console.error("Purchase failed:", error);
+     if (error?.code === "INSUFFICIENT_FUNDS") {
+      toast.error("💸 You don’t have enough ETH to complete this transaction.");
+    } 
+    else if (error?.error?.message?.includes("insufficient funds")) {
+      toast.error("💸 Insufficient funds for gas and transaction.");
+    } 
     toast.error("Purchase failed. Please try again later.");
   } finally {
     setLoading(false);

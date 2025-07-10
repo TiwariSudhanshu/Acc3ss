@@ -271,8 +271,15 @@ export default function CreateEventForm() {
         throw new Error("EventCreated log not found")
       }
       return eventId
-    } catch (error) {
+    } catch (error:any) {
       console.error("❌ createEvent error:", error)
+       if (error?.code === "INSUFFICIENT_FUNDS") {
+      toast.error("💸 You don’t have enough ETH to complete this transaction.");
+    } 
+    // 👇 Handle JSON-RPC style (Metamask) error
+    else if (error?.error?.message?.includes("insufficient funds")) {
+      toast.error("💸 Insufficient funds for gas and transaction.");
+    } 
       throw error
     }
   }

@@ -364,7 +364,6 @@ export default function EventDetails() {
           )
         }
 
-        toast.success("Event data loaded successfully!")
       } else {
         const fallbackData: EventData = {
           id: Number(eventId),

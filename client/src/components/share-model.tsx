@@ -86,7 +86,6 @@ export default function ShareModal({ isOpen, onClose, eventTitle, eventUrl }: Sh
     try {
       await navigator.clipboard.writeText(currentUrl)
       setCopied(true)
-      toast.success("Link copied to clipboard!")
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       toast.error("Failed to copy link")
