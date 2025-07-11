@@ -22,13 +22,7 @@ export default function ExplorePage() {
     }
   }, [address, isConnecting, router]);
 
-  if (checkingAuth || !address) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0b0505] text-white">
-      </div>
-    );
-  }
-  useEffect(() => {
+    useEffect(() => {
   const check = async () => {
     const isCorrect = await checkCorrectNetwork();
     if (!isCorrect) {
@@ -41,6 +35,13 @@ export default function ExplorePage() {
 
   check();
 }, []);
+  if (checkingAuth || !address) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0b0505] text-white">
+      </div>
+    );
+  }
+
 
 
   return (
