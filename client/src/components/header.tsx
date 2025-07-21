@@ -1,18 +1,24 @@
 "use client"
 import { Wallet } from "lucide-react"
 import Image from "next/image"
+import { useRouter } from "next/navigation";
 import { useAccount, useConnect, useDisconnect } from "wagmi"
 
 export default function Header() {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
+  const router = useRouter();
 
   return (
     <header className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-gray-800">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Left: Logo */}
-        <button onClick={() => { window.location.href = "/" }} className="cursor-pointer">
+        <button onClick={() => { 
+           if (window.location.pathname !== "/") {
+            router.push("/explore");
+    }
+           }} className="cursor-pointer">
           <Image
             src="/logo.png"
             alt="logo"

@@ -50,10 +50,7 @@ interface EventDetails {
   date: string
   time: string
   location: string
-  organizer: {
-    name: string
-    address: string
-  }
+  organizer: string,
   totalSupply: number
   sold: number
   category: string
@@ -197,75 +194,76 @@ useEffect(() => {
   }
 
   const handleGetAttendees = async () => {
-    try {
-      const contract = await getContract()
-      const lastTicketId = await contract.nextTokenId()
-      const matchedTickets = []
+  try {
+    const contract = await getContract()
+    const lastTicketId = await contract.nextTokenId()
+    const matchedTickets = []
 
-      for (let i = 0; i < lastTicketId; i++) {
-        const thisEvent = await contract.tokenToEvent(i)
-        if (thisEvent.toString() === eventId.toString()) {
-          matchedTickets.push(i)
-        }
+    for (let i = 0; i < lastTicketId; i++) {
+      const thisEvent = await contract.tokenToEvent(i)
+      if (thisEvent.toString() === eventId.toString()) {
+        matchedTickets.push(i)
       }
+    }
 
-      const res = await fetch("/api/getAttendees", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ticketIds: matchedTickets,
-          eventId: eventId,
-        }),
+    const res = await fetch("/api/getAttendees", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ticketIds: matchedTickets,
+        eventId: eventId,
+      }),
+    })
+
+    const data = await res.json()
+    console.log("Attendees data:", data)
+
+    if (res.ok) {
+      const ticketEntriesData: TicketEntry[] = []
+      let checkedInCount = 0
+      let pendingCount = 0
+
+      data.attendees.forEach((attendee: Attendee) => {
+        const hasAttended = attendee.eventsAttended.includes(eventId)
+        const status: "checked-in" | "pending" = hasAttended ? "checked-in" : "pending"
+
+        if (hasAttended) {
+          checkedInCount++
+        } else {
+          pendingCount++
+        }
+
+        // Push only once per attendee
+        ticketEntriesData.push({
+          ticketId: attendee.ticketsOwned[0], // optional: show first ticket ID only
+          email: attendee.email,
+          name: attendee.name,
+          profilePicture: attendee.profilePicture,
+          walletAddress: attendee.walletAddress,
+          status: status,
+          checkInTime: hasAttended ? new Date().toLocaleString() : undefined,
+        })
       })
 
-      const data = await res.json()
-      if (res.ok) {
-        const ticketEntriesData: TicketEntry[] = []
-        let checkedInCount = 0
-        let pendingCount = 0
-
-        data.attendees.forEach((attendee: Attendee) => {
-          attendee.ticketsOwned.forEach((ticketId: string) => {
-            // Check if user has already attended this event
-            const hasAttended = attendee.eventsAttended.includes(eventId)
-            const status: "checked-in" | "pending" = hasAttended ? "checked-in" : "pending"
-
-            if (hasAttended) {
-              checkedInCount++
-            } else {
-              pendingCount++
-            }
-
-            ticketEntriesData.push({
-              ticketId,
-              email: attendee.email,
-              name: attendee.name,
-              profilePicture: attendee.profilePicture,
-              walletAddress: attendee.walletAddress,
-              status: status,
-              checkInTime: hasAttended ? new Date().toLocaleString() : undefined,
-            })
-          })
-        })
-
-        setTicketEntries(ticketEntriesData)
-        setFilteredTicketEntries(ticketEntriesData)
-        setStats({
-          total: ticketEntriesData.length,
-          checkedIn: checkedInCount,
-          pending: pendingCount,
-        })
-      } else {
-        console.error("Error fetching attendees:", data.error)
-        toast.error("Failed to fetch attendees")
-      }
-    } catch (error) {
-      console.error("Error in handleGetAttendees:", error)
+      setTicketEntries(ticketEntriesData)
+      setFilteredTicketEntries(ticketEntriesData)
+      setStats({
+        total: ticketEntriesData.length,
+        checkedIn: checkedInCount,
+        pending: pendingCount,
+      })
+    } else {
+      console.error("Error fetching attendees:", data.error)
       toast.error("Failed to fetch attendees")
     }
+  } catch (error) {
+    console.error("Error in handleGetAttendees:", error)
+    toast.error("Failed to fetch attendees")
   }
+}
+
 
   const applyFilters = (ticketList: TicketEntry[]) => {
     let filtered = ticketList
@@ -546,8 +544,8 @@ useEffect(() => {
     )
   }
 
-  if(eventDetails.organizer.address?.toLowerCase() !== address?.toLowerCase()) {
-    return(
+  if(eventDetails.organizer?.toLowerCase() !== address?.toLowerCase()) {
+  return(
       <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 flex items-center justify-center">
         <div className="text-center">
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
@@ -620,7 +618,7 @@ useEffect(() => {
                 </div>
                 <div className="flex items-center text-gray-300">
                   <User className="w-4 h-4 mr-2 text-orange-400" />
-                  {eventDetails.organizer.name}
+                  {eventDetails.organizer}
                 </div>
               </div>
             </div>
