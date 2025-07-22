@@ -8,7 +8,7 @@ export async function POST (req: NextRequest){
             return NextResponse.json({ error: "Wallet address is required" }, { status: 400 });
         }
 
-        const user = await User.find({ walletAddress });
+        const user = await User.findOne({ walletAddress });
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }

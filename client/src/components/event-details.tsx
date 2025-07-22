@@ -1,11 +1,9 @@
 "use client"
 
-import { getContract } from "@/contract/contract"
 import { Calendar, MapPin, Users, Clock, Share2, Shield, Zap, Trophy, Mail, Wallet } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { formatEther } from "ethers"
 import ShareModal from "./share-model"
 import BuyTicketModal from "./buy-ticket-modal"
 import { useAccount } from "wagmi"
@@ -63,20 +61,23 @@ interface EventData {
   endDateTime?: string
 }
 
-interface IPFSMetadata {
-  eventName?: string
-  description?: string
-  category?: string
-  image?: string
-  location?: string
-  startDateTime?: string
-  endDateTime?: string
-  speakers?: Speaker[]
-  organizedBy?: "solo" | "community"
-  communityName?: string
-  requirementsToAttend?: string
-  whatsIncluded?: string
-  agenda?: string | AgendaItem[]
+interface APIEvent {
+  eventId: string
+  hash: string
+  organizer: string
+  chainId: string
+  eventName: string
+  description: string
+  category: string
+  image: string
+    ticketPrice: string
+  location: string
+  startDateTime: string
+  endDateTime: string
+  organizedBy: string
+  requirementsToAttend: string
+  whatsIncluded: string
+  agenda: string
 }
 
 export default function EventDetails() {
@@ -92,14 +93,6 @@ export default function EventDetails() {
   const { address, isConnected } = useAccount()
   const [purchaseStatus, setPurchaseStatus] = useState(false)
   const [checkingPurchase, setCheckingPurchase] = useState(false)
-
-  // Convert IPFS URI to HTTP URL
-  const convertIPFSToHTTP = (ipfsUri: string): string => {
-    if (ipfsUri?.startsWith("ipfs://")) {
-      return ipfsUri.replace("ipfs://", "https://lavender-tremendous-deer-798.mypinata.cloud/ipfs/")
-    }
-    return ipfsUri || "/placeholder.svg"
-  }
 
   const getOrganiserDetail = async (walletAddress: string): Promise<OrganizerDetails | null> => {
     setOrganizerLoading(true)
@@ -185,26 +178,16 @@ export default function EventDetails() {
     router.push("/")
   }
 
-  // Fetch IPFS metadata
-  const fetchIPFSMetadata = async (baseURI: string): Promise<IPFSMetadata | null> => {
+  // Format date and time from string
+  const formatDateTime = (dateTimeString: string) => {
     try {
-      const httpUrl = convertIPFSToHTTP(baseURI)
-      const response = await fetch(httpUrl)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch metadata: ${response.statusText}`)
+      if (dateTimeString.includes("Invalid Date")) {
+        return { date: "TBD", time: "TBD" }
       }
-      const metadata: IPFSMetadata = await response.json()
-      return metadata
-    } catch (error) {
-      console.error("Error fetching IPFS metadata:", error)
-      return null
-    }
-  }
-
-  // Format date and time from ISO string
-  const formatDateTime = (isoString: string) => {
-    try {
-      const date = new Date(isoString)
+      const date = new Date(dateTimeString)
+      if (isNaN(date.getTime())) {
+        return { date: "TBD", time: "TBD" }
+      }
       const dateStr = date.toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
@@ -222,26 +205,31 @@ export default function EventDetails() {
   }
 
   // Determine event status
-  const getEventStatus = (startDateTime?: string, endDateTime?: string, totalSold?: number, maxTickets?: number) => {
-    if (!startDateTime) return "Coming Soon"
-    const now = new Date()
-    const start = new Date(startDateTime)
-    const end = endDateTime ? new Date(endDateTime) : null
-    if (now >= start && (!end || now <= end)) {
-      return "Live"
-    } else if (end && now > end) {
-      return "Ended"
-    } else if (maxTickets && totalSold && totalSold >= maxTickets) {
-      return "Sold Out"
-    } else {
-      return "Selling"
+  const getEventStatus = (startDateTime?: string, endDateTime?: string) => {
+    if (!startDateTime || startDateTime.includes("Invalid Date")) return "Coming Soon"
+
+    try {
+      const now = new Date()
+      const start = new Date(startDateTime)
+      const end = endDateTime && !endDateTime.includes("Invalid Date") ? new Date(endDateTime) : null
+
+      if (isNaN(start.getTime())) return "Coming Soon"
+
+      if (now >= start && (!end || now <= end)) {
+        return "Live"
+      } else if (end && now > end) {
+        return "Ended"
+      } else {
+        return "Selling"
+      }
+    } catch (error) {
+      return "Coming Soon"
     }
   }
 
-  // Parse agenda from string or return as is if already array
-  const parseAgenda = (agenda: string | AgendaItem[] | undefined): AgendaItem[] => {
+  // Parse agenda from string
+  const parseAgenda = (agenda: string | undefined): AgendaItem[] => {
     if (!agenda) return []
-    if (Array.isArray(agenda)) return agenda
     try {
       // Try to parse as JSON first
       const parsed = JSON.parse(agenda)
@@ -272,135 +260,80 @@ export default function EventDetails() {
 
   const getEventData = async (eventId: string) => {
     setLoading(true)
-    // Try getting event from cache
-    const cached = localStorage.getItem("events")
-    const cachedEvents: EventData[] = cached ? JSON.parse(cached) : []
-    const cachedEvent = cachedEvents.find((e) => e.id === Number(eventId))
-    if (cachedEvent) {
-      setEventData(cachedEvent)
-    }
-
     try {
-      const contract = await getContract()
-      const eventDetails = await contract.getEventDetails(eventId)
-      const [name, ticketPrice, maxTickets, totalTicketsSold, baseURI, organizer] = eventDetails
-      const metadata = await fetchIPFSMetadata(baseURI)
+      const response = await fetch("/api/getAllEvents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ eventId }),
+      })
 
-      if (metadata) {
-        const startDate = metadata.startDateTime ? formatDateTime(metadata.startDateTime) : { date: "TBD", time: "TBD" }
-        const endDate = metadata.endDateTime ? formatDateTime(metadata.endDateTime) : null
-        const priceInETH = formatEther(ticketPrice)
-        const priceDisplay = priceInETH === "0.0" ? "Free" : `${priceInETH} ETH`
-        const status = getEventStatus(
-          metadata.startDateTime,
-          metadata.endDateTime,
-          Number(totalTicketsSold),
-          Number(maxTickets),
+      if (!response.ok) {
+        throw new Error("Failed to fetch event data")
+      }
+
+      const apiEvent: APIEvent = await response.json()
+
+      if (!apiEvent) {
+        throw new Error("Event not found")
+      }
+
+      // Format date and time from API response
+      const startDate = formatDateTime(apiEvent.startDateTime)
+      const endDate = apiEvent.endDateTime ? formatDateTime(apiEvent.endDateTime) : null
+
+      // Determine event status
+      const status = getEventStatus(apiEvent.startDateTime, apiEvent.endDateTime)
+
+      // Parse agenda, requirements, and perks
+      const parsedAgenda = parseAgenda(apiEvent.agenda)
+      const requirements = parseListItems(apiEvent.requirementsToAttend)
+      const perks = parseListItems(apiEvent.whatsIncluded)
+
+      const completeEventData: EventData = {
+        id: Number(apiEvent.eventId),
+        title: apiEvent.eventName || "Untitled Event",
+        banner: apiEvent.image || "/placeholder.svg?height=500&width=1200",
+        description: apiEvent.description,
+        date: startDate.date,
+        time: startDate.time,
+        endDate: endDate?.date,
+        location: apiEvent.location || "TBD",
+          price: apiEvent.ticketPrice, 
+        totalSupply: 100, // Default since API doesn't provide this info
+        sold: 0, // Default since API doesn't provide this info
+        category: apiEvent.category || "General",
+        status,
+        organizer: {
+          name: apiEvent.organizedBy || "Event Organizer",
+          address: apiEvent.organizer,
+          verified: true,
+        },
+        speakers: [], // Default since API doesn't provide speakers info
+        agenda: parsedAgenda,
+        perks: perks.length > 0 ? perks : undefined,
+        requirements: requirements.length > 0 ? requirements : undefined,
+        organizedBy: "solo", // Default
+        startDateTime: apiEvent.startDateTime,
+        endDateTime: apiEvent.endDateTime,
+      }
+
+      setEventData(completeEventData)
+      // Get organizer details
+      const organizerDetails = await getOrganiserDetail(apiEvent.organizer)
+      if (organizerDetails) {
+        setEventData((prev) =>
+          prev
+            ? {
+                ...prev,
+                organizer: {
+                  ...organizerDetails,
+                  name:  organizerDetails.name,
+                },
+              }
+            : null,
         )
-
-        const parsedAgenda = parseAgenda(metadata.agenda)
-        const requirements = parseListItems(metadata.requirementsToAttend)
-        const perks = parseListItems(metadata.whatsIncluded)
-
-        // Process speakers with image URLs
-        const processedSpeakers =
-          metadata.speakers?.map((speaker, index) => ({
-            ...speaker,
-            imageUrl: speaker.hasImage ? convertIPFSToHTTP(`speaker_${index}_image_url_from_metadata`) : undefined,
-          })) || []
-
-        const completeEventData: EventData = {
-          id: Number(eventId),
-          title: metadata.eventName || name,
-          banner: convertIPFSToHTTP(metadata.image || ""),
-          description: metadata.description,
-          date: startDate.date,
-          time: startDate.time,
-          endDate: endDate?.date,
-          location: metadata.location || "TBD",
-          price: priceDisplay,
-          totalSupply: Number(maxTickets),
-          sold: Number(totalTicketsSold),
-          category: metadata.category || "General",
-          status,
-          organizer: {
-            name:
-              metadata.organizedBy === "community" && metadata.communityName
-                ? metadata.communityName
-                : "Event Organizer",
-            address: organizer,
-            verified: true,
-          },
-          speakers: processedSpeakers,
-          agenda: parsedAgenda,
-          perks: perks.length > 0 ? perks : undefined,
-          requirements: requirements.length > 0 ? requirements : undefined,
-          organizedBy: metadata.organizedBy,
-          communityName: metadata.communityName,
-          startDateTime: metadata.startDateTime,
-          endDateTime: metadata.endDateTime,
-        }
-
-        setEventData(completeEventData)
-        // Replace or append to cachedEvents
-        const updatedEvents = [...cachedEvents.filter((e) => e.id !== Number(eventId)), completeEventData]
-        localStorage.setItem("events", JSON.stringify(updatedEvents))
-
-        const organizerDetails = await getOrganiserDetail(organizer)
-        if (organizerDetails) {
-          setEventData((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  organizer: {
-                    ...organizerDetails,
-                    name:
-                      metadata.organizedBy === "community" && metadata.communityName
-                        ? metadata.communityName
-                        : organizerDetails.name,
-                  },
-                }
-              : null,
-          )
-        }
-
-      } else {
-        const fallbackData: EventData = {
-          id: Number(eventId),
-          title: name,
-          banner: "/placeholder.svg?height=500&width=1200",
-          date: "TBD",
-          time: "TBD",
-          location: "TBD",
-          price: formatEther(ticketPrice) === "0.0" ? "Free" : `${formatEther(ticketPrice)} ETH`,
-          totalSupply: Number(maxTickets),
-          sold: Number(totalTicketsSold),
-          category: "General",
-          status: "Coming Soon",
-          organizer: {
-            name: "Event Organizer",
-            address: organizer,
-            verified: false,
-          },
-        }
-
-        setEventData(fallbackData)
-        const organizerDetails = await getOrganiserDetail(organizer)
-        if (organizerDetails) {
-          setEventData((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  organizer: organizerDetails,
-                }
-              : null,
-          )
-        }
-
-        // Add fallback to cache too
-        const updatedEvents = [...cachedEvents.filter((e) => e.id !== Number(eventId)), fallbackData]
-        localStorage.setItem("events", JSON.stringify(updatedEvents))
-        toast.warning("Event loaded with limited data")
       }
     } catch (error) {
       console.error("Error fetching event data:", error)
@@ -658,7 +591,7 @@ export default function EventDetails() {
             {/* Ticket Purchase */}
             <div className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/50">
               <div className="text-center mb-8">
-                <div className="text-4xl font-bold text-white mb-2">{eventData.price}</div>
+                <div className="text-4xl font-bold text-white mb-2">{eventData.price} Eth</div>
                 {eventData.priceUSD && <div className="text-gray-300 text-lg">{eventData.priceUSD}</div>}
               </div>
 

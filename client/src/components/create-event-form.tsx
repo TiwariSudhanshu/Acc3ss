@@ -253,11 +253,12 @@ export default function CreateEventForm() {
     }
   }
 
-  const createEvent = async (metadataUrl: string): Promise<number> => {
+  const createEvent = async (metadataUrl: string): Promise<{eventId:number, hash: string}> => {
     try {
       const contract = await getContract()
       const priceInWei = isFreeEvent ? "0" : parseEther(priceInETH).toString()
       const tx = await contract.createEvent(eventName, priceInWei, maxTicketsAvailable, metadataUrl)
+      const hash = tx.hash;
       const receipt = await tx.wait()
       let eventId: number | null = null
       for (const log of receipt.logs) {
@@ -270,7 +271,7 @@ export default function CreateEventForm() {
         console.error("❌ EventCreated log not found or eventId missing")
         throw new Error("EventCreated log not found")
       }
-      return eventId
+      return {eventId, hash}
     } catch (error:any) {
       console.error("❌ createEvent error:", error)
        if (error?.code === "INSUFFICIENT_FUNDS") {
@@ -286,13 +287,17 @@ export default function CreateEventForm() {
 
   const { address } = useAccount()
 
-  const addEventIdToDb = async (eventId: number) => {
+  const addEventToDb = async (eventId: number, metadataUrl: string, hash:string, priceInETH: string) => {
     const res = await fetch("/api/addEventToDb", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         eventId,
-        walletAddress: address,
+        organizer: address,
+        chainId: "0x11155111",
+        tokenUrl: metadataUrl,
+        hash: hash,
+        ticketPrice: priceInETH
       }),
     })
     dispatch(addEventCreated(eventId.toString()))
@@ -309,8 +314,8 @@ export default function CreateEventForm() {
       toast.loading("Uploading metadata to IPFS...", { id: loadingToast })
       const metadataUrl = await addDataToIPFS(metadata)
       toast.loading("Creating event on blockchain...", { id: loadingToast })
-      const eventId = await createEvent(metadataUrl)
-      await addEventIdToDb(eventId)
+      const {eventId, hash} = await createEvent(metadataUrl)
+      await addEventToDb(eventId, metadataUrl, hash, priceInETH)
       toast.success("Event created successfully!", { id: loadingToast })
       setEventName("")
       setCategory("")

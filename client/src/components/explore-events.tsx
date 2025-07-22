@@ -1,12 +1,11 @@
 "use client"
-import { Calendar, MapPin, Users, Search, Plus, User, RefreshCw } from "lucide-react"
+
+import { Calendar, MapPin, Users, Search, Plus, User } from "lucide-react"
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
-import { getContract } from "@/contract/contract"
 import { toast } from "sonner"
-import { formatEther } from "ethers"
 
 interface Event {
   id: number
@@ -35,15 +34,23 @@ interface RootState {
   }
 }
 
-interface IPFSMetadata {
+interface APIEvent {
+  eventId: string
+  hash: string
+  organizer: string
+  chainId: string
   eventName: string
+  ticketPrice: string
   description: string
   category: string
-  image: string // Changed from bannerImage to image
+  image: string
   location: string
   startDateTime: string
   endDateTime: string
   organizedBy: string
+  requirementsToAttend: string
+  whatsIncluded: string
+  agenda: string
 }
 
 export default function ExploreEvents() {
@@ -58,34 +65,16 @@ export default function ExploreEvents() {
   // Get profile picture from Redux
   const userProfile = useSelector((state: RootState) => state.user)
 
-  // Convert IPFS URI to HTTP URL
-  const convertIPFSToHTTP = (ipfsUri: string): string => {
-    if (ipfsUri?.startsWith("ipfs://")) {
-      return ipfsUri.replace("ipfs://", "https://lavender-tremendous-deer-798.mypinata.cloud/ipfs/")
-    }
-    return ipfsUri || "/placeholder.svg"
-  }
-
-  // Fetch IPFS metadata
-  const fetchIPFSMetadata = async (baseURI: string): Promise<IPFSMetadata | null> => {
+  // Format date and time from string
+  const formatDateTime = (dateTimeString: string) => {
     try {
-      const httpUrl = convertIPFSToHTTP(baseURI)
-      const response = await fetch(httpUrl)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch metadata: ${response.statusText}`)
+      if (dateTimeString.includes("Invalid Date")) {
+        return { date: "TBD", time: "TBD" }
       }
-      const metadata: IPFSMetadata = await response.json()
-      return metadata
-    } catch (error) {
-      console.error("Error fetching IPFS metadata:", error)
-      return null
-    }
-  }
-
-  // Format date and time from ISO string
-  const formatDateTime = (isoString: string) => {
-    try {
-      const date = new Date(isoString)
+      const date = new Date(dateTimeString)
+      if (isNaN(date.getTime())) {
+        return { date: "TBD", time: "TBD" }
+      }
       const dateStr = date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -103,121 +92,67 @@ export default function ExploreEvents() {
   }
 
   // Determine event status
-  const getEventStatus = (startDateTime?: string, endDateTime?: string, totalSold?: number, maxTickets?: number) => {
-    if (!startDateTime) return "Coming Soon"
-    const now = new Date()
-    const start = new Date(startDateTime)
-    const end = endDateTime ? new Date(endDateTime) : null
+  const getEventStatus = (startDateTime?: string, endDateTime?: string) => {
+    if (!startDateTime || startDateTime.includes("Invalid Date")) return "Coming Soon"
 
-    if (now >= start && (!end || now <= end)) {
-      return "Live"
-    } else if (end && now > end) {
-      return "Ended"
-    } else if (maxTickets && totalSold && totalSold >= maxTickets) {
-      return "Sold Out"
-    } else {
-      return "Selling"
+    try {
+      const now = new Date()
+      const start = new Date(startDateTime)
+      const end = endDateTime && !endDateTime.includes("Invalid Date") ? new Date(endDateTime) : null
+
+      if (isNaN(start.getTime())) return "Coming Soon"
+
+      if (now >= start && (!end || now <= end)) {
+        return "Live"
+      } else if (end && now > end) {
+        return "Ended"
+      } else {
+        return "Selling"
+      }
+    } catch (error) {
+      return "Coming Soon"
     }
   }
 
   async function getEvents() {
     setLoading(true)
     try {
-      const contract = await getContract()
-      const lastIdBn = await contract.nextEventId()
-      const lastId = Number(lastIdBn)
-
-      const cached = localStorage.getItem("events")
-      const cachedEvents: Event[] = cached
-        ? JSON.parse(cached).map((event: any) => ({
-            ...event,
-            image: convertIPFSToHTTP(event.banner || event.image),
-          }))
-        : []
-
-      setEvents(cachedEvents)
-
-      const newEvents: Event[] = []
-      for (let i = cachedEvents.length; i < lastId; i++) {
-        try {
-          const eventData = await contract.getEventDetails(i.toString())
-          const [name, ticketPrice, maxTickets, totalTicketsSold, baseURI, organizer] = eventData
-
-          // Fetch IPFS metadata
-          const metadata = await fetchIPFSMetadata(baseURI)
-
-          if (metadata) {
-            // Format date and time
-            const { date, time } = formatDateTime(metadata.startDateTime)
-
-            // Convert ticket price from wei to ETH
-            const priceInETH = formatEther(ticketPrice)
-
-            // Determine event status
-            const status = getEventStatus(
-              metadata.startDateTime,
-              metadata.endDateTime,
-              Number(totalTicketsSold),
-              Number(maxTickets),
-            )
-
-            // Construct complete event object with proper defaults
-            const completeEvent: Event = {
-              id: i,
-              title: metadata.eventName || name || "Untitled Event",
-              image: convertIPFSToHTTP(metadata.image), // Changed from metadata.bannerImage to metadata.image
-              date,
-              time,
-              location: metadata.location || "TBD",
-              price: priceInETH === "0.0" ? "Free" : `${priceInETH} ETH`,
-              attendees: Number(totalTicketsSold) || 0,
-              category: metadata.category || "General",
-              status,
-              description: metadata.description,
-              organizer,
-              maxTickets: Number(maxTickets) || 0,
-              totalTicketsSold: Number(totalTicketsSold) || 0,
-              startDateTime: metadata.startDateTime,
-              endDateTime: metadata.endDateTime,
-              organizedBy: metadata.organizedBy,
-            }
-
-            newEvents.push(completeEvent)
-          } else {
-            // Fallback if IPFS metadata fails
-            const fallbackEvent: Event = {
-              id: i,
-              title: name || "Untitled Event",
-              image: "/placeholder.svg?height=200&width=400",
-              date: "TBD",
-              time: "TBD",
-              location: "TBD",
-              price: formatEther(ticketPrice) === "0.0" ? "Free" : `${formatEther(ticketPrice)} ETH`,
-              attendees: Number(totalTicketsSold) || 0,
-              category: "General",
-              status: "Coming Soon",
-              organizer,
-              maxTickets: Number(maxTickets) || 0,
-              totalTicketsSold: Number(totalTicketsSold) || 0,
-            }
-
-            newEvents.push(fallbackEvent)
-          }
-        } catch (eventError) {
-          console.error(`Error fetching event ${i}:`, eventError)
-          // Continue with next event instead of showing toast for each error
-        }
+      const response = await fetch("/api/getAllEvents")
+      if (!response.ok) {
+        throw new Error("Failed to fetch events")
       }
 
-      // Merge cached and new events
-      const mergedEvents = [...cachedEvents, ...newEvents]
-      setEvents(mergedEvents)
-      localStorage.setItem("events", JSON.stringify(mergedEvents))
+      const apiEvents: APIEvent[] = await response.json()
 
-      if (newEvents.length > 0) {
+      const formattedEvents: Event[] = apiEvents.map((apiEvent) => {
+        const { date, time } = formatDateTime(apiEvent.startDateTime)
+        const status = getEventStatus(apiEvent.startDateTime, apiEvent.endDateTime)
 
-      } else if (mergedEvents.length === 0) {
-        toast.info("No events found on the blockchain yet.")
+        return {
+          id: Number.parseInt(apiEvent.eventId),
+          title: apiEvent.eventName || "Untitled Event",
+          image: apiEvent.image || "/placeholder.svg?height=200&width=400",
+          date,
+          time,
+          location: apiEvent.location || "TBD",
+          price: apiEvent.ticketPrice, 
+          attendees: 0, // Default since API doesn't provide attendee info
+          category: apiEvent.category || "General",
+          status,
+          description: apiEvent.description,
+          organizer: apiEvent.organizer,
+          maxTickets: 0, // Default since API doesn't provide this info
+          totalTicketsSold: 0, // Default since API doesn't provide this info
+          startDateTime: apiEvent.startDateTime,
+          endDateTime: apiEvent.endDateTime,
+          organizedBy: apiEvent.organizedBy,
+        }
+      })
+
+      setEvents(formattedEvents)
+
+      if (formattedEvents.length === 0) {
+        toast.info("No events found.")
       }
     } catch (error) {
       console.error("Error fetching events:", error)
@@ -225,12 +160,6 @@ export default function ExploreEvents() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const refreshEvents = async () => {
-    localStorage.removeItem("events")
-    setEvents([])
-    await getEvents()
   }
 
   useEffect(() => {
@@ -246,7 +175,11 @@ export default function ExploreEvents() {
 
       // If both are ended or both are not ended, sort by date (sooner events first)
       if (a.startDateTime && b.startDateTime) {
-        return new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime()
+        const dateA = new Date(a.startDateTime)
+        const dateB = new Date(b.startDateTime)
+        if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
+          return dateA.getTime() - dateB.getTime()
+        }
       }
 
       // If one has no date, put it at the end
@@ -390,14 +323,6 @@ export default function ExploreEvents() {
                 </button>
               ))}
             </div>
-            <button
-              onClick={refreshEvents}
-              disabled={loading}
-              className="flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-              Refresh Onchain
-            </button>
           </div>
         </div>
 
@@ -423,7 +348,7 @@ export default function ExploreEvents() {
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto mb-4"></div>
-              <p className="text-white text-lg">Loading events onchain...</p>
+              <p className="text-white text-lg">Loading events...</p>
             </div>
           </div>
         ) : (
@@ -480,7 +405,7 @@ export default function ExploreEvents() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="text-2xl font-bold text-white">{event.price}</div>
+                    <div className="text-2xl font-bold text-white">{event.price} Eth</div>
                     <button
                       onClick={(e) => handleGetTicketClick(event.id, e)}
                       disabled={event.status === "Sold Out" || event.status === "Ended"}
@@ -503,9 +428,7 @@ export default function ExploreEvents() {
         {filteredEvents.length === 0 && !loading && (
           <div className="text-center py-12">
             <div className="text-gray-400 text-lg mb-4">
-              {events.length === 0
-                ? "No events available on the blockchain yet"
-                : "No events found matching your criteria"}
+              {events.length === 0 ? "No events available yet" : "No events found matching your criteria"}
             </div>
             {(searchTerm || selectedCategory !== "All") && (
               <div className="flex gap-4 justify-center">
