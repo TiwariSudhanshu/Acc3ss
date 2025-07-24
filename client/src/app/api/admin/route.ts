@@ -94,8 +94,8 @@ export async function GET(req: NextRequest) {
 export async function POST (req: NextRequest){
     try{
         await connectDB();
-        const {eventId} = await req.json();
-        const event = await Event.findById(eventId);
+        const { eventId } = await req.json();
+        const event = await Event.findOne({ eventId: eventId });
         if (!event) {
             return NextResponse.json({ error: "Event not found" }, { status: 404 });
         }
