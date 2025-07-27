@@ -1,5 +1,4 @@
 "use client"
-
 import { Calendar, MapPin, Users, Clock, Share2, Shield, Zap, Trophy, Mail, Wallet } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -14,7 +13,7 @@ interface Speaker {
   description: string
   email: string
   hasImage?: boolean
-  imageUrl?: string
+  avatar?: string // Changed from imageUrl to avatar for consistency with sample data
 }
 
 interface AgendaItem {
@@ -53,8 +52,9 @@ interface EventData {
   agenda?: AgendaItem[]
   perks?: string[]
   requirements?: string[]
-  organizedBy?: "solo" | "community"
+  organizedBy?: string
   communityName?: string
+  communityImage?: string
   requirementsToAttend?: string
   whatsIncluded?: string
   startDateTime?: string
@@ -70,7 +70,7 @@ interface APIEvent {
   description: string
   category: string
   image: string
-    ticketPrice: string
+  ticketPrice: string
   location: string
   startDateTime: string
   endDateTime: string
@@ -78,6 +78,9 @@ interface APIEvent {
   requirementsToAttend: string
   whatsIncluded: string
   agenda: string
+  speakers?: Speaker[]
+  communityName?: string
+  communityImage?: string
 }
 
 export default function EventDetails() {
@@ -94,8 +97,8 @@ export default function EventDetails() {
   const [purchaseStatus, setPurchaseStatus] = useState(false)
   const [checkingPurchase, setCheckingPurchase] = useState(false)
 
+  // Modified getOrganiserDetail to only fetch and return data
   const getOrganiserDetail = async (walletAddress: string): Promise<OrganizerDetails | null> => {
-    setOrganizerLoading(true)
     try {
       const res = await fetch("/api/returnProfile", {
         method: "POST",
@@ -119,8 +122,6 @@ export default function EventDetails() {
       console.error("Error fetching organizer details:", error)
       toast.error("Failed to load organizer details")
       return null
-    } finally {
-      setOrganizerLoading(false)
     }
   }
 
@@ -184,8 +185,8 @@ export default function EventDetails() {
       if (dateTimeString.includes("Invalid Date")) {
         return { date: "TBD", time: "TBD" }
       }
-        const normalized = dateTimeString.replace(" at ", " ");
-    const date = new Date(normalized);
+      const normalized = dateTimeString.replace(" at ", " ")
+      const date = new Date(normalized)
       if (isNaN(date.getTime())) {
         return { date: "TBD", time: "TBD" }
       }
@@ -208,14 +209,11 @@ export default function EventDetails() {
   // Determine event status
   const getEventStatus = (startDateTime?: string, endDateTime?: string) => {
     if (!startDateTime || startDateTime.includes("Invalid Date")) return "Coming Soon"
-
     try {
       const now = new Date()
       const start = new Date(startDateTime)
       const end = endDateTime && !endDateTime.includes("Invalid Date") ? new Date(endDateTime) : null
-
       if (isNaN(start.getTime())) return "Coming Soon"
-
       if (now >= start && (!end || now <= end)) {
         return "Live"
       } else if (end && now > end) {
@@ -261,6 +259,7 @@ export default function EventDetails() {
 
   const getEventData = async (eventId: string) => {
     setLoading(true)
+    setOrganizerLoading(true) // Set organizer loading initially
     try {
       const response = await fetch("/api/getAllEvents", {
         method: "POST",
@@ -269,78 +268,92 @@ export default function EventDetails() {
         },
         body: JSON.stringify({ eventId }),
       })
-
       if (!response.ok) {
         throw new Error("Failed to fetch event data")
       }
-
       const apiEvent: APIEvent = await response.json()
-
       if (!apiEvent) {
         throw new Error("Event not found")
       }
 
-      // Format date and time from API response
       const startDate = formatDateTime(apiEvent.startDateTime)
       const endDate = apiEvent.endDateTime ? formatDateTime(apiEvent.endDateTime) : null
-
-      // Determine event status
       const status = getEventStatus(apiEvent.startDateTime, apiEvent.endDateTime)
-
-      // Parse agenda, requirements, and perks
       const parsedAgenda = parseAgenda(apiEvent.agenda)
       const requirements = parseListItems(apiEvent.requirementsToAttend)
       const perks = parseListItems(apiEvent.whatsIncluded)
 
+      let finalOrganizerDetails: OrganizerDetails
+
+      if (apiEvent.organizedBy === "solo") {
+        // Fetch solo organizer details
+        const fetchedOrganizer = await getOrganiserDetail(apiEvent.organizer)
+        if (fetchedOrganizer) {
+          finalOrganizerDetails = fetchedOrganizer
+        } else {
+          // Fallback if fetching solo organizer fails
+          finalOrganizerDetails = {
+            name: "Solo Organizer",
+            address: apiEvent.organizer,
+            verified: false,
+            profilePicture: "/placeholder.svg?height=64&width=64&text=Solo",
+          }
+        }
+      } else if (apiEvent.organizedBy === "community") {
+        // Use community details directly from API response
+        finalOrganizerDetails = {
+          name: apiEvent.communityName || "Community Organizer",
+          profilePicture: apiEvent.communityImage || "/placeholder.svg?height=64&width=64&text=Community",
+          verified: true, // Assuming community details imply verification
+          address: apiEvent.organizer, // Still the wallet address of the community
+          email: undefined, // No email from community data
+        }
+      } else {
+        // Default fallback if organizedBy is neither solo nor community, or missing
+        finalOrganizerDetails = {
+          name: apiEvent.organizedBy || "Event Organizer",
+          address: apiEvent.organizer,
+          verified: false,
+          profilePicture: "/placeholder.svg?height=64&width=64&text=Org",
+        }
+      }
+
       const completeEventData: EventData = {
         id: Number(apiEvent.eventId),
         title: apiEvent.eventName || "Untitled Event",
-        banner: apiEvent.image || "/placeholder.svg?height=500&width=1200",
+        banner: apiEvent.image || "/placeholder.svg?height=500&width=1200&text=Event Banner",
         description: apiEvent.description,
-        date: startDate.date,
-        time: startDate.time,
+        date: endDate && endDate.date !== startDate.date 
+  ? `${startDate.date} to ${endDate.date}` 
+  : startDate.date,
+        time: startDate.time ,
         endDate: endDate?.date,
         location: apiEvent.location || "TBD",
-          price: apiEvent.ticketPrice, 
+        price: apiEvent.ticketPrice,
         totalSupply: 100, // Default since API doesn't provide this info
         sold: 0, // Default since API doesn't provide this info
         category: apiEvent.category || "General",
         status,
-        organizer: {
-          name: apiEvent.organizedBy || "Event Organizer",
-          address: apiEvent.organizer,
-          verified: true,
-        },
-        speakers: [], // Default since API doesn't provide speakers info
+        organizer: finalOrganizerDetails, // Assign the determined organizer details
+        speakers: apiEvent.speakers || [],
         agenda: parsedAgenda,
         perks: perks.length > 0 ? perks : undefined,
         requirements: requirements.length > 0 ? requirements : undefined,
-        organizedBy: "solo", // Default
+        organizedBy: apiEvent.organizedBy,
         startDateTime: apiEvent.startDateTime,
         endDateTime: apiEvent.endDateTime,
+        communityName: apiEvent.communityName || "Community",
+        communityImage: apiEvent.communityImage || "/placeholder.svg?height=500&width=1200&text=Community Image",
       }
 
+      console.log("Complete Event Data:", completeEventData)
       setEventData(completeEventData)
-      // Get organizer details
-      const organizerDetails = await getOrganiserDetail(apiEvent.organizer)
-      if (organizerDetails) {
-        setEventData((prev) =>
-          prev
-            ? {
-                ...prev,
-                organizer: {
-                  ...organizerDetails,
-                  name:  organizerDetails.name,
-                },
-              }
-            : null,
-        )
-      }
     } catch (error) {
       console.error("Error fetching event data:", error)
       toast.error("Failed to load event data. Please try again later.")
     } finally {
       setLoading(false)
+      setOrganizerLoading(false) // Ensure organizer loading is off after all data is processed
     }
   }
 
@@ -416,7 +429,6 @@ export default function EventDetails() {
       className: "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white",
     }
   }
-
   const buttonState = getButtonState()
 
   return (
@@ -424,7 +436,7 @@ export default function EventDetails() {
       {/* Hero Banner */}
       <div className="relative h-96 md:h-[500px] overflow-hidden">
         <img
-          src={eventData.banner || "/placeholder.svg"}
+          src={eventData.banner || "/placeholder.svg?height=500&width=1200&text=Event Banner"}
           alt={eventData.title}
           className="w-full h-full object-cover"
         />
@@ -467,7 +479,6 @@ export default function EventDetails() {
           </div>
         </div>
       </div>
-
       <div className="container mx-auto px-4 py-12">
         <div className="grid lg:grid-cols-3 gap-12">
           {/* Main Content */}
@@ -484,7 +495,6 @@ export default function EventDetails() {
                 </div>
               )}
             </div>
-
             {/* Speakers */}
             <div className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/50">
               <h2 className="text-3xl font-bold text-white mb-8">Featured Speakers</h2>
@@ -496,7 +506,7 @@ export default function EventDetails() {
                       className="flex items-start space-x-4 p-6 bg-gray-700/30 rounded-2xl"
                     >
                       <img
-                        src="https://i.pinimg.com/736x/96/51/60/9651605860388437ea779e0a51ab5649.jpg"
+                        src={speaker.avatar || "/placeholder.svg?height=80&width=80&text=Speaker"}
                         alt={speaker.name}
                         className="w-20 h-20 rounded-full object-cover flex-shrink-0"
                       />
@@ -515,7 +525,6 @@ export default function EventDetails() {
                 </div>
               )}
             </div>
-
             {/* Agenda */}
             <div className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/50">
               <h2 className="text-3xl font-bold text-white mb-8">Event Agenda</h2>
@@ -538,13 +547,12 @@ export default function EventDetails() {
                 </div>
               )}
             </div>
-
             {/* Perks & Requirements */}
             <div className="grid md:grid-cols-2 gap-8">
               <div className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/50">
                 <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
                   <Trophy className="w-6 h-6 mr-3 text-orange-400" />
-                  What's Included
+                  What&apos;s Included
                 </h2>
                 {eventData.perks && eventData.perks.length > 0 ? (
                   <ul className="space-y-3">
@@ -562,7 +570,6 @@ export default function EventDetails() {
                   </div>
                 )}
               </div>
-
               <div className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/50">
                 <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
                   <Shield className="w-6 h-6 mr-3 text-orange-400" />
@@ -586,7 +593,6 @@ export default function EventDetails() {
               </div>
             </div>
           </div>
-
           {/* Sidebar */}
           <div className="space-y-8">
             {/* Ticket Purchase */}
@@ -595,7 +601,6 @@ export default function EventDetails() {
                 <div className="text-4xl font-bold text-white mb-2">{eventData.price} Eth</div>
                 {eventData.priceUSD && <div className="text-gray-300 text-lg">{eventData.priceUSD}</div>}
               </div>
-
               {/* Progress Bar */}
               <div className="mb-8">
                 <div className="flex justify-between text-sm text-gray-300 mb-2">
@@ -610,14 +615,12 @@ export default function EventDetails() {
                 </div>
                 <div className="text-center text-sm text-gray-400 mt-2">{Math.round(progressPercentage)}% sold</div>
               </div>
-
               <div className="space-y-4 mb-8">
                 <div className="flex justify-between text-gray-300">
                   <span>Network:</span>
                   <span>Ethereum Sepolia</span>
                 </div>
               </div>
-
               <div className="space-y-4">
                 <button
                   onClick={handleBuyTicketClick}
@@ -637,7 +640,6 @@ export default function EventDetails() {
                 </div>
               </div>
             </div>
-
             {/* Organizer Info */}
             <div className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold text-white mb-6">Organized by</h3>
@@ -652,7 +654,7 @@ export default function EventDetails() {
               ) : (
                 <div className="flex items-center space-x-4 mb-6">
                   <img
-                    src={eventData.organizer.profilePicture || "/placeholder.svg"}
+                    src={eventData.organizer.profilePicture || "/placeholder.svg?height=64&width=64&text=Org"}
                     alt={eventData.organizer.name}
                     className="w-16 h-16 rounded-full object-cover"
                   />
@@ -674,7 +676,6 @@ export default function EventDetails() {
                 </div>
               )}
             </div>
-
             {/* Event Stats */}
             <div className="bg-gray-800/30 rounded-3xl p-8 border border-gray-700/50">
               <h3 className="text-xl font-bold text-white mb-6">Event Stats</h3>
@@ -698,7 +699,6 @@ export default function EventDetails() {
           </div>
         </div>
       </div>
-
       {/* Wallet Connection Modal */}
       {walletConnectModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -735,10 +735,8 @@ export default function EventDetails() {
           </div>
         </div>
       )}
-
       {/* Share Modal */}
       <ShareModal isOpen={shareModalOpen} onClose={() => setShareModalOpen(false)} eventTitle={eventData.title} />
-
       {/* Buy Ticket Modal */}
       <BuyTicketModal isOpen={buyTicketModalOpen} onClose={() => setBuyTicketModalOpen(false)} eventData={eventData} />
     </div>
