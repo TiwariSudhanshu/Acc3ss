@@ -71,8 +71,9 @@ export default function ExploreEvents() {
       if (dateTimeString.includes("Invalid Date")) {
         return { date: "TBD", time: "TBD" }
       }
-      const date = new Date(dateTimeString)
-      if (isNaN(date.getTime())) {
+   const normalized = dateTimeString.replace(" at ", " ");
+    const date = new Date(normalized);
+          if (isNaN(date.getTime())) {
         return { date: "TBD", time: "TBD" }
       }
       const dateStr = date.toLocaleDateString("en-US", {

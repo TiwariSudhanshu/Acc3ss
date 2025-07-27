@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
   try{
     await connectDB();
     const { eventId, tokenUrl, hash, organizer, chainId, ticketPrice } = await request.json();
+    console.log("Received data:", { eventId, tokenUrl, hash, organizer, chainId, ticketPrice });
     if (!eventId || !tokenUrl || !hash || !organizer || !chainId || !ticketPrice) {
       return NextResponse.json({ error: "All fields are required." }, { status: 400 });
     }

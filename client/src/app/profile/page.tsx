@@ -6,7 +6,6 @@ import Footer from "@/components/footer";
 import ProfileDashboard from "@/components/profileComponents/profile-dashboard";
 import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
-import { checkCorrectNetwork } from "@/contract/checkNetwork";
 import { toast } from "sonner";
 
 export default function ExplorePage() {
@@ -22,19 +21,6 @@ export default function ExplorePage() {
     }
   }, [address, isConnecting, router]);
 
-    useEffect(() => {
-  const check = async () => {
-    const isCorrect = await checkCorrectNetwork();
-    if (!isCorrect) {
-      toast.warning("Please switch to Sepolia Testnet in MetaMask.", {
-          duration: Infinity,
-          dismissible: false,
-        });
-    }
-  };
-
-  check();
-}, []);
   if (checkingAuth || !address) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0b0505] text-white">

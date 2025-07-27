@@ -184,7 +184,8 @@ export default function EventDetails() {
       if (dateTimeString.includes("Invalid Date")) {
         return { date: "TBD", time: "TBD" }
       }
-      const date = new Date(dateTimeString)
+        const normalized = dateTimeString.replace(" at ", " ");
+    const date = new Date(normalized);
       if (isNaN(date.getTime())) {
         return { date: "TBD", time: "TBD" }
       }

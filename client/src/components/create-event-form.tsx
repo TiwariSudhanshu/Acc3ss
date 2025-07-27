@@ -27,6 +27,7 @@ interface EventMetadata {
   speakers: Speaker[]
   organizedBy: "solo" | "community"
   communityName?: string
+  communityImage?: File | null // Added communityImage
   requirementsToAttend: string
   whatsIncluded: string
   agenda: string
@@ -60,9 +61,10 @@ export default function CreateEventForm() {
   const [speakerPreviews, setSpeakerPreviews] = useState<Record<string, string>>({})
   const [organizedBy, setOrganizedBy] = useState<"solo" | "community">("solo")
   const [communityName, setCommunityName] = useState("")
+  const [communityImage, setCommunityImage] = useState<File | null>(null) // New state for community image
+  const [communityPreview, setCommunityPreview] = useState<string | null>(null) // New state for community image preview
   const [isFreeEvent, setIsFreeEvent] = useState(false)
   const [loading, setLoading] = useState(false)
-
   const dispatch = useAppDispatch()
 
   // Handle banner image upload with preview
@@ -97,6 +99,20 @@ export default function CreateEventForm() {
         delete newPreviews[speakerId]
         return newPreviews
       })
+    }
+  }
+
+  // Handle community image upload with preview
+  const handleCommunityImageUpload = (file: File | null) => {
+    setCommunityImage(file)
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setCommunityPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      setCommunityPreview(null)
     }
   }
 
@@ -162,6 +178,10 @@ export default function CreateEventForm() {
       toast.error("Please enter a valid number of tickets")
       return false
     }
+    if (organizedBy === "community" && !communityName.trim()) {
+      toast.error("Community name is required when organized by community")
+      return false
+    }
     return true
   }
 
@@ -178,11 +198,11 @@ export default function CreateEventForm() {
       speakers,
       organizedBy,
       communityName: organizedBy === "community" ? communityName : undefined,
+      communityImage: organizedBy === "community" ? communityImage : undefined, // Added communityImage to metadata
       requirementsToAttend,
       whatsIncluded,
       agenda,
     }
-
     // Collect actual form data into onchain data structure
     const onchainData: OnchainData = {
       eventName,
@@ -191,7 +211,6 @@ export default function CreateEventForm() {
       network,
       isFreeEvent,
     }
-
     return { metadata, onchainData }
   }
 
@@ -212,6 +231,10 @@ export default function CreateEventForm() {
       formData.append("organizedBy", data.organizedBy)
       if (data.organizedBy === "community" && data.communityName) {
         formData.append("communityName", data.communityName)
+      }
+      // Add community image if organized by community and exists
+      if (data.organizedBy === "community" && data.communityImage) {
+        formData.append("communityImage", data.communityImage)
       }
       formData.append("requirementsToAttend", data.requirementsToAttend)
       formData.append("whatsIncluded", data.whatsIncluded)
@@ -253,12 +276,12 @@ export default function CreateEventForm() {
     }
   }
 
-  const createEvent = async (metadataUrl: string): Promise<{eventId:number, hash: string}> => {
+  const createEvent = async (metadataUrl: string): Promise<{ eventId: number; hash: string }> => {
     try {
       const contract = await getContract()
       const priceInWei = isFreeEvent ? "0" : parseEther(priceInETH).toString()
       const tx = await contract.createEvent(eventName, priceInWei, maxTicketsAvailable, metadataUrl)
-      const hash = tx.hash;
+      const hash = tx.hash
       const receipt = await tx.wait()
       let eventId: number | null = null
       for (const log of receipt.logs) {
@@ -271,23 +294,25 @@ export default function CreateEventForm() {
         console.error("❌ EventCreated log not found or eventId missing")
         throw new Error("EventCreated log not found")
       }
-      return {eventId, hash}
-    } catch (error:any) {
+      return { eventId, hash }
+    } catch (error: any) {
       console.error("❌ createEvent error:", error)
-       if (error?.code === "INSUFFICIENT_FUNDS") {
-      toast.error("💸 You don’t have enough ETH to complete this transaction.");
-    } 
-    // 👇 Handle JSON-RPC style (Metamask) error
-    else if (error?.error?.message?.includes("insufficient funds")) {
-      toast.error("💸 Insufficient funds for gas and transaction.");
-    } 
+      if (error?.code === "INSUFFICIENT_FUNDS") {
+        toast.error("💸 You don’t have enough ETH to complete this transaction.")
+      }
+      // 👇 Handle JSON-RPC style (Metamask) error
+      else if (error?.error?.message?.includes("insufficient funds")) {
+        toast.error("💸 Insufficient funds for gas and transaction.")
+      }
       throw error
     }
   }
 
   const { address } = useAccount()
 
-  const addEventToDb = async (eventId: number, metadataUrl: string, hash:string, priceInETH: string) => {
+  const addEventToDb = async (eventId: number, metadataUrl: string, hash: string, priceInETH: string) => {
+    console.log("Adding event to DB:", { eventId, metadataUrl, hash, priceInETH })
+    const ticketPrice = priceInETH === "" || " " ? "0" : priceInETH
     const res = await fetch("/api/addEventToDb", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -297,7 +322,7 @@ export default function CreateEventForm() {
         chainId: "0x11155111",
         tokenUrl: metadataUrl,
         hash: hash,
-        ticketPrice: priceInETH
+        ticketPrice,
       }),
     })
     dispatch(addEventCreated(eventId.toString()))
@@ -314,7 +339,7 @@ export default function CreateEventForm() {
       toast.loading("Uploading metadata to IPFS...", { id: loadingToast })
       const metadataUrl = await addDataToIPFS(metadata)
       toast.loading("Creating event on blockchain...", { id: loadingToast })
-      const {eventId, hash} = await createEvent(metadataUrl)
+      const { eventId, hash } = await createEvent(metadataUrl)
       await addEventToDb(eventId, metadataUrl, hash, priceInETH)
       toast.success("Event created successfully!", { id: loadingToast })
       setEventName("")
@@ -335,6 +360,8 @@ export default function CreateEventForm() {
       setSpeakerPreviews({})
       setOrganizedBy("solo")
       setCommunityName("")
+      setCommunityImage(null) // Reset community image
+      setCommunityPreview(null) // Reset community preview
       setIsFreeEvent(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "An error occurred", { id: loadingToast })
@@ -401,7 +428,6 @@ export default function CreateEventForm() {
                 </div>
               )}
             </div>
-
             {/* Basic Information */}
             <div className="bg-gray-800/30 rounded-3xl p-10 border border-gray-700/50">
               <h2 className="text-2xl font-bold mb-8 text-white">Basic Information</h2>
@@ -451,7 +477,6 @@ export default function CreateEventForm() {
                 </div>
               </div>
             </div>
-
             {/* Speakers Section */}
             <div className="bg-gray-800/30 rounded-3xl p-10 border border-gray-700/50">
               <div className="flex items-center justify-between mb-8">
@@ -514,7 +539,7 @@ export default function CreateEventForm() {
                         {speakerPreviews[speaker.id] ? (
                           <div className="flex items-center gap-4">
                             <img
-                              src={speakerPreviews[speaker.id] || "/placeholder.svg" || "/placeholder.svg"}
+                              src={speakerPreviews[speaker.id] || "/placeholder.svg"}
                               alt="Speaker preview"
                               className="w-16 h-16 rounded-full object-cover"
                             />
@@ -553,7 +578,6 @@ export default function CreateEventForm() {
                 </div>
               )}
             </div>
-
             {/* Organization */}
             <div className="bg-gray-800/30 rounded-3xl p-10 border border-gray-700/50">
               <h2 className="text-2xl font-bold mb-8 text-white flex items-center">
@@ -600,21 +624,67 @@ export default function CreateEventForm() {
                   </label>
                 </div>
                 {organizedBy === "community" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-3">Community Name</label>
-                    <input
-                      type="text"
-                      value={communityName}
-                      onChange={(e) => setCommunityName(e.target.value)}
-                      className="w-full bg-gray-700/50 border border-gray-600 rounded-xl px-6 py-4 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors text-lg"
-                      placeholder="Enter community name"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-3">Community Name *</label>
+                      <input
+                        type="text"
+                        value={communityName}
+                        onChange={(e) => setCommunityName(e.target.value)}
+                        className="w-full bg-gray-700/50 border border-gray-600 rounded-xl px-6 py-4 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-colors text-lg"
+                        placeholder="Enter community name"
+                      />
+                    </div>
+                    {/* Community Image Upload */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-300 mb-3">Community Image</label>
+                      {communityPreview ? (
+                        <div className="space-y-4">
+                          <div className="relative rounded-2xl overflow-hidden">
+                            <img
+                              src={communityPreview || "/placeholder.svg"}
+                              alt="Community preview"
+                              className="w-full h-48 object-cover"
+                            />
+                            <div className="absolute top-2 right-2 flex gap-2">
+                              <button
+                                onClick={() => handleCommunityImageUpload(null)}
+                                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-green-400 text-sm">Selected: {communityImage?.name}</p>
+                        </div>
+                      ) : (
+                        <div className="border-2 border-dashed border-gray-600 rounded-2xl p-16 text-center hover:border-orange-500 transition-colors">
+                          <Upload className="w-16 h-16 mx-auto mb-6 text-gray-400" />
+                          <p className="text-gray-300 mb-3 text-lg">
+                            Drop your community image here, or click to browse
+                          </p>
+                          <p className="text-sm text-gray-500 mb-6">Recommended: Square image, JPG or PNG</p>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => handleCommunityImageUpload(e.target.files?.[0] || null)}
+                            id="community-upload"
+                          />
+                          <label
+                            htmlFor="community-upload"
+                            className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 cursor-pointer inline-block"
+                          >
+                            Choose File
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
           </div>
-
           {/* Right Side */}
           <div className="space-y-12">
             {/* Date & Location */}
@@ -659,7 +729,6 @@ export default function CreateEventForm() {
                 </div>
               </div>
             </div>
-
             {/* More Event Details */}
             <div className="bg-gray-800/30 rounded-3xl p-10 border border-gray-700/50">
               <h2 className="text-2xl font-bold mb-8 text-white flex items-center">
@@ -699,7 +768,6 @@ export default function CreateEventForm() {
                 </div>
               </div>
             </div>
-
             {/* Ticketing */}
             <div className="bg-gray-800/30 rounded-3xl p-10 border border-gray-700/50">
               <h2 className="text-2xl font-bold mb-8 text-white flex items-center">
@@ -755,7 +823,6 @@ export default function CreateEventForm() {
                 </div>
               </div>
             </div>
-
             {/* Blockchain Settings */}
             <div className="bg-gray-800/30 rounded-3xl p-10 border border-gray-700/50">
               <h2 className="text-2xl font-bold mb-8 text-white flex items-center">
@@ -778,7 +845,6 @@ export default function CreateEventForm() {
             </div>
           </div>
         </div>
-
         {/* Submit Buttons */}
         <div className="flex flex-col sm:flex-row gap-6 justify-center pt-16">
           <button
