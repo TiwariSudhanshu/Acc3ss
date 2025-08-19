@@ -29,7 +29,7 @@ interface TicketEntry {
   name: string
   profilePicture: string
   walletAddress: string
-  status: "checked-in" | "pending" 
+  status: "checked-in" | "pending"
   checkInTime?: string
 }
 
@@ -45,11 +45,11 @@ interface Attendee {
 interface EventDetails {
   id: number
   title: string
-  banner: string
+  image: string
   date: string
   time: string
   location: string
-  organizer: string,
+  organizer: string
   totalSupply: number
   sold: number
   category: string
@@ -60,7 +60,7 @@ export default function VerifyEventPage() {
   const params = useParams()
   const router = useRouter()
   const eventId = params.id as string
-  const {address} = useAccount();
+  const { address } = useAccount()
   // State management
   const [eventDetails, setEventDetails] = useState<EventDetails | null>(null)
   const [ticketEntries, setTicketEntries] = useState<TicketEntry[]>([])
@@ -83,7 +83,6 @@ export default function VerifyEventPage() {
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const isScannerInitialized = useRef(false)
-
 
   // QR Scanner initialization
   useEffect(() => {
@@ -162,94 +161,119 @@ export default function VerifyEventPage() {
   }
 
   // Get event data from localStorage
-  const getEventFromCache = () => {
+  // const getEventFromCache = () => {
+  //   try {
+  //     const cached = localStorage.getItem("events")
+  //     if (cached) {
+  //       const cachedEvents: EventDetails[] = JSON.parse(cached)
+  //       const event = cachedEvents.find((e) => e.id === Number(eventId))
+  //       if (event) {
+  //         console.log("Event found in cache:", event)
+  //         setEventDetails(event)
+  //         return true
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error("Error getting event from cache:", error)
+  //   }
+  //   return false
+  // }
+
+  const getEvent = async () => {
     try {
-      const cached = localStorage.getItem("events")
-      if (cached) {
-        const cachedEvents: EventDetails[] = JSON.parse(cached)
-        const event = cachedEvents.find((e) => e.id === Number(eventId))
-        if (event) {
-          setEventDetails(event)
-          return true
-        }
+      const res = await fetch("/api/getAllEvents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventId: eventId,
+        }),
+      })
+      const data = await res.json()
+      console.log("Fetched event data:", data)
+      if (res.ok) {
+        setEventDetails(data)
+        return true
+      } else {
+        console.error("Error fetching event:", data.error)
+        toast.error("Failed to fetch event")
       }
     } catch (error) {
-      console.error("Error getting event from cache:", error)
+      console.error("Error in getEvent:", error)
+      toast.error("Failed to fetch event")
     }
-    return false
   }
 
   const handleGetAttendees = async () => {
-  try {
-    const contract = await getContract()
-    const lastTicketId = await contract.nextTokenId()
-    const matchedTickets = []
+    try {
+      const contract = await getContract()
+      const lastTicketId = await contract.nextTokenId()
+      const matchedTickets = []
 
-    for (let i = 0; i < lastTicketId; i++) {
-      const thisEvent = await contract.tokenToEvent(i)
-      if (thisEvent.toString() === eventId.toString()) {
-        matchedTickets.push(i)
-      }
-    }
-
-    const res = await fetch("/api/getAttendees", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ticketIds: matchedTickets,
-        eventId: eventId,
-      }),
-    })
-
-    const data = await res.json()
-    console.log("Attendees data:", data)
-
-    if (res.ok) {
-      const ticketEntriesData: TicketEntry[] = []
-      let checkedInCount = 0
-      let pendingCount = 0
-
-      data.attendees.forEach((attendee: Attendee) => {
-        const hasAttended = attendee.eventsAttended.includes(eventId)
-        const status: "checked-in" | "pending" = hasAttended ? "checked-in" : "pending"
-
-        if (hasAttended) {
-          checkedInCount++
-        } else {
-          pendingCount++
+      for (let i = 0; i < lastTicketId; i++) {
+        const thisEvent = await contract.tokenToEvent(i)
+        if (thisEvent.toString() === eventId.toString()) {
+          matchedTickets.push(i)
         }
+      }
 
-        // Push only once per attendee
-        ticketEntriesData.push({
-          ticketId: attendee.ticketsOwned[0], // optional: show first ticket ID only
-          email: attendee.email,
-          name: attendee.name,
-          profilePicture: attendee.profilePicture,
-          walletAddress: attendee.walletAddress,
-          status: status,
-          checkInTime: hasAttended ? new Date().toLocaleString() : undefined,
+      const res = await fetch("/api/getAttendees", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ticketIds: matchedTickets,
+          eventId: eventId,
+        }),
+      })
+
+      const data = await res.json()
+      console.log("Attendees data:", data)
+
+      if (res.ok) {
+        const ticketEntriesData: TicketEntry[] = []
+        let checkedInCount = 0
+        let pendingCount = 0
+        data.attendees.forEach((attendee: Attendee) => {
+          const hasAttended = attendee.eventsAttended.includes(eventId)
+          const status: "checked-in" | "pending" = hasAttended ? "checked-in" : "pending"
+
+          if (hasAttended) {
+            checkedInCount++
+          } else {
+            pendingCount++
+          }
+
+          // Push only once per attendee
+          ticketEntriesData.push({
+            ticketId: attendee.ticketsOwned[0], // optional: show first ticket ID only
+            email: attendee.email,
+            name: attendee.name,
+            profilePicture: attendee.profilePicture,
+            walletAddress: attendee.walletAddress,
+            status: status,
+            checkInTime: hasAttended ? new Date().toLocaleString() : undefined,
+          })
         })
-      })
 
-      setTicketEntries(ticketEntriesData)
-      setFilteredTicketEntries(ticketEntriesData)
-      setStats({
-        total: ticketEntriesData.length,
-        checkedIn: checkedInCount,
-        pending: pendingCount,
-      })
-    } else {
-      console.error("Error fetching attendees:", data.error)
+        setTicketEntries(ticketEntriesData)
+        setFilteredTicketEntries(ticketEntriesData)
+        setStats({
+          total: ticketEntriesData.length,
+          checkedIn: checkedInCount,
+          pending: pendingCount,
+        })
+      } else {
+        console.error("Error fetching attendees:", data.error)
+        toast.error("Failed to fetch attendees")
+      }
+    } catch (error) {
+      console.error("Error in handleGetAttendees:", error)
       toast.error("Failed to fetch attendees")
     }
-  } catch (error) {
-    console.error("Error in handleGetAttendees:", error)
-    toast.error("Failed to fetch attendees")
   }
-}
-
 
   const applyFilters = (ticketList: TicketEntry[]) => {
     let filtered = ticketList
@@ -468,12 +492,13 @@ export default function VerifyEventPage() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
-      link.download = `${eventDetails?.title.replace(/\s+/g, "-").toLowerCase()}-attendees.csv`
+      const fileName = eventDetails?.title ? eventDetails.title.replace(/\s+/g, "-").toLowerCase() : "event"
+
+      link.download = `${fileName}-attendees.csv`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
-
     } catch (error) {
       console.error("Export error:", error)
       toast.error("Failed to export attendee list")
@@ -488,9 +513,9 @@ export default function VerifyEventPage() {
 
     const loadData = async () => {
       setIsLoading(true)
-      const eventFound = getEventFromCache()
+      const eventFound = await getEvent() // Added await to properly wait for getEvent to complete
       if (!eventFound) {
-        toast.error("Event not found in cache")
+        toast.error("Event not found ")
         setIsLoading(false)
         return
       }
@@ -518,7 +543,7 @@ export default function VerifyEventPage() {
         <div className="text-center">
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white mb-2">Event Not Found</h1>
-          <p className="text-gray-400 mb-4">The event you're looking for doesn't exist in cache.</p>
+          <p className="text-gray-400 mb-4">The event you're looking for doesn't exist.</p>
           <button
             onClick={() => router.back()}
             className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors"
@@ -530,8 +555,8 @@ export default function VerifyEventPage() {
     )
   }
 
-  if(eventDetails.organizer?.toLowerCase() !== address?.toLowerCase()) {
-  return(
+  if (eventDetails.organizer?.toLowerCase() !== address?.toLowerCase()) {
+    return (
       <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 flex items-center justify-center">
         <div className="text-center">
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
@@ -587,7 +612,7 @@ export default function VerifyEventPage() {
         <div className="bg-gray-800/50 rounded-2xl border border-gray-700 p-6 mb-8">
           <div className="flex items-start space-x-6">
             <img
-              src={eventDetails.banner || "/placeholder.svg?height=128&width=128"}
+              src={eventDetails.image || "/placeholder.svg?height=128&width=128"}
               alt={eventDetails.title}
               className="w-32 h-32 rounded-xl object-cover"
             />

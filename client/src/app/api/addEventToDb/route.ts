@@ -2,6 +2,7 @@ import Event from "@/models/Event.models";
 
 import connectDB from "@/libs/connectDB";
 import { NextRequest, NextResponse } from "next/server";
+import User from "@/models/User.models";
 
 export async function POST(request: NextRequest) {
   try{
@@ -23,6 +24,14 @@ export async function POST(request: NextRequest) {
     };
 
     const createdEvent = await Event.create(newEvent);
+
+    // Add created event to user profile
+    const user = await User.findOne({walletAddress:organizer});
+    if(!user){
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+    user.eventsCreated.push(eventId);
+    await user.save();
 
     return NextResponse.json({ message: "Event added successfully", event: createdEvent }, { status: 201 });
   }catch(e){
