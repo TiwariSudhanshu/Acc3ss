@@ -248,7 +248,7 @@ export default function VerifyEventPage() {
 
           // Push only once per attendee
           ticketEntriesData.push({
-            ticketId: attendee.ticketsOwned[0], // optional: show first ticket ID only
+            ticketId: attendee.ticketsOwned[0], 
             email: attendee.email,
             name: attendee.name,
             profilePicture: attendee.profilePicture,

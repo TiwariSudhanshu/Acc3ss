@@ -5,25 +5,26 @@ import connectDB from "@/libs/connectDB";
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-    const { ticketId, walletAddress } = await req.json();
+    const { ticketId, walletAddress, eventId } = await req.json();
 
     const user = await User.findOne({ walletAddress: walletAddress });
 
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
-if (!Array.isArray(user.eventsAttended)) {
-  user.eventsAttended = [];
-}
+    if (!Array.isArray(user.ticketsUsed)) {
+      user.ticketsUsed = [];
+    }
 
-    if (user.eventsAttended.includes(ticketId)) {
+    if (user.ticketsUsed.includes(ticketId)) {
       return NextResponse.json(
         { message: "Access already granted" },
         { status: 400 }
       );
     }
 
-    user.eventsAttended.push(ticketId);
+    user.ticketsUsed.push(ticketId);
+    user.eventsAttended.push(eventId);
     await user.save();
 
     return NextResponse.json(
