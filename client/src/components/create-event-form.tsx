@@ -280,6 +280,8 @@ export default function CreateEventForm() {
     try {
       const contract = await getContract()
       const priceInWei = isFreeEvent ? "0" : parseEther(priceInETH).toString()
+      console.log("Price in eth :", priceInETH);
+      console.log("Price in wei :", priceInWei);
       const tx = await contract.createEvent(eventName, priceInWei, maxTicketsAvailable, metadataUrl)
       const hash = tx.hash
       const receipt = await tx.wait()
@@ -311,8 +313,10 @@ export default function CreateEventForm() {
   const { address } = useAccount()
 
   const addEventToDb = async (eventId: number, metadataUrl: string, hash: string, priceInETH: string) => {
-    console.log("Adding event to DB:", { eventId, metadataUrl, hash, priceInETH })
-    const ticketPrice = priceInETH === "" || " " ? "0" : priceInETH
+    console.log("Adding event to DB:", { eventId, priceInETH })
+
+    const ticketPrice = priceInETH === ""  ? "0" : priceInETH
+    console.log("Ticket price:", ticketPrice);
     const res = await fetch("/api/addEventToDb", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

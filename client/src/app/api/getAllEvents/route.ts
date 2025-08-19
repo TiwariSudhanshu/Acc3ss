@@ -91,7 +91,7 @@ const buildFullEventData = async (event: any): Promise<EventData | null> => {
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const events = await Event.find({});
+    const events = await Event.find({ approved: true });
     if (!events?.length) {
       return NextResponse.json({ message: "No events found." }, { status: 404 });
     }
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
     const { eventId } = await request.json();
     await connectDB();
 
-    const event = await Event.findOne({ eventId });
+    const event = await Event.findOne({ eventId, approved:true });
     if (!event) {
       return NextResponse.json({ message: "Event not found." }, { status: 404 });
     }

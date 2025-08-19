@@ -25,12 +25,14 @@ interface BuyTicketModalProps {
       name: string;
     };
   };
+  onPurchaseSuccess: () => void;
 }
 
 export default function BuyTicketModal({
   isOpen,
   onClose,
   eventData,
+  onPurchaseSuccess
 }: BuyTicketModalProps) {
   if (!isOpen) return null;
 
@@ -87,6 +89,7 @@ export default function BuyTicketModal({
 
     dispatch(addTicketOwned(ticketId.toString()));
     toast.success("Ticket purchased successfully");
+          onPurchaseSuccess?.()
     onClose();
   } catch (error:any) {
     console.error("Purchase failed:", error);

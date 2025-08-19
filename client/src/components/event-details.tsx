@@ -174,6 +174,10 @@ export default function EventDetails() {
     checkPurchaseStatus(true)
   }
 
+  const handlePurchaseSuccess = () => {
+    setPurchaseStatus(true)
+  }
+
   // Handle redirect to home page
   const handleGoToHome = () => {
     router.push("/")
@@ -303,7 +307,7 @@ export default function EventDetails() {
         // Use community details directly from API response
         finalOrganizerDetails = {
           name: apiEvent.communityName || "Community Organizer",
-          profilePicture: apiEvent.communityImage || "/placeholder.svg?height=64&width=64&text=Community",
+          profilePicture: apiEvent.communityImage || "/placeholder.svg?height=500&width=1200&text=Community Image",
           verified: true, // Assuming community details imply verification
           address: apiEvent.organizer, // Still the wallet address of the community
           email: undefined, // No email from community data
@@ -323,10 +327,8 @@ export default function EventDetails() {
         title: apiEvent.eventName || "Untitled Event",
         banner: apiEvent.image || "/placeholder.svg?height=500&width=1200&text=Event Banner",
         description: apiEvent.description,
-        date: endDate && endDate.date !== startDate.date 
-  ? `${startDate.date} to ${endDate.date}` 
-  : startDate.date,
-        time: startDate.time ,
+        date: endDate && endDate.date !== startDate.date ? `${startDate.date} to ${endDate.date}` : startDate.date,
+        time: startDate.time,
         endDate: endDate?.date,
         location: apiEvent.location || "TBD",
         price: apiEvent.ticketPrice,
@@ -738,7 +740,12 @@ export default function EventDetails() {
       {/* Share Modal */}
       <ShareModal isOpen={shareModalOpen} onClose={() => setShareModalOpen(false)} eventTitle={eventData.title} />
       {/* Buy Ticket Modal */}
-      <BuyTicketModal isOpen={buyTicketModalOpen} onClose={() => setBuyTicketModalOpen(false)} eventData={eventData} />
+      <BuyTicketModal
+        isOpen={buyTicketModalOpen}
+        onClose={() => setBuyTicketModalOpen(false)}
+        eventData={eventData}
+        onPurchaseSuccess={handlePurchaseSuccess}
+      />
     </div>
   )
 }

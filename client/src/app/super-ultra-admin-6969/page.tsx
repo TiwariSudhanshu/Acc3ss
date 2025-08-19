@@ -28,9 +28,20 @@ interface Event {
   category: string
   image: string
   location: string
-  startDateTime: string
-  endDateTime: string
+  startDateTime: string | { date: string; time: string }
+  endDateTime: string | { date: string; time: string }
   organizedBy: string
+}
+
+// Helper function to format date/time
+const formatDateTime = (dateTime: string | { date: string; time: string }) => {
+  if (typeof dateTime === 'string') {
+    return dateTime
+  }
+  if (typeof dateTime === 'object' && dateTime.date && dateTime.time) {
+    return `${dateTime.date} ${dateTime.time}`
+  }
+  return 'TBD'
 }
 
 // Circular Loader Component
@@ -482,7 +493,7 @@ export default function AdminPage() {
                       <div className="space-y-2 mb-4">
                         <div className="flex items-center text-sm text-gray-300">
                           <span className="w-16 text-gray-400">Date:</span>
-                          <span>{event.startDateTime}</span>
+                          <span>{formatDateTime(event.startDateTime)}</span>
                         </div>
                         <div className="flex items-center text-sm text-gray-300">
                           <span className="w-16 text-gray-400">Location:</span>
