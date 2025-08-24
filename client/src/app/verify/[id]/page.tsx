@@ -101,31 +101,44 @@ export default function VerifyEventPage() {
 
     if (isScannerInitialized.current) return
 
-    const initializeScanner = async () => {
-      try {
-        const html5QrCode = new Html5Qrcode("qr-reader")
-        scannerRef.current = html5QrCode
-        const devices = await Html5Qrcode.getCameras()
-        if (devices && devices.length > 0) {
-          const cameraId = devices[0].id
-          await html5QrCode.start(
-            cameraId,
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText: string) => {
-              handleQRScan(decodedText)
-            },
-            (errorMessage: string) => {
-              // Ignore frequent QR scanning errors
-            },
-          )
-          isScannerInitialized.current = true
-        }
-      } catch (err) {
-        console.error("Camera initialization error:", err)
-        toast.error("Failed to initialize camera")
-        setIsScannerOpen(false)
+   const initializeScanner = async () => {
+  try {
+    const html5QrCode = new Html5Qrcode("qr-reader")
+    scannerRef.current = html5QrCode
+
+    const devices = await Html5Qrcode.getCameras()
+    if (devices && devices.length > 0) {
+      // Try to pick rear camera (back facing) first
+      let cameraId = devices[0].id
+      const backCamera = devices.find(d =>
+        d.label.toLowerCase().includes("back") ||
+        d.label.toLowerCase().includes("rear") ||
+        d.label.toLowerCase().includes("environment") 
+      )
+
+      if (backCamera) {
+        cameraId = backCamera.id
       }
+
+      await html5QrCode.start(
+        cameraId,
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText: string) => {
+          handleQRScan(decodedText)
+        },
+        () => {
+        }
+      )
+
+      isScannerInitialized.current = true
     }
+  } catch (err) {
+    console.error("Camera initialization error:", err)
+    toast.error("Failed to initialize camera")
+    setIsScannerOpen(false)
+  }
+}
+
 
     initializeScanner()
 
