@@ -1,39 +1,43 @@
-"use client"
-import { useState, useRef } from "react"
-import type React from "react"
-import { X, Camera, Upload } from "lucide-react"
-import { useDispatch } from "react-redux"
-import { useAccount } from "wagmi"
-import { updateProfilePicture, updateUserDetails } from "@/store/userSlice"
-import { toast } from "sonner"
+"use client";
+import { useState, useRef } from "react";
+import type React from "react";
+import { X, Camera, Upload } from "lucide-react";
+import { useDispatch } from "react-redux";
+import { useAccount } from "wagmi";
+import { updateProfilePicture, updateUserDetails } from "@/store/userSlice";
+import { toast } from "sonner";
 
 interface SettingsModalProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
   user: {
-    name: string
-    email: string
-    walletAddress: string
-    profilePicture: string
-  }
+    name: string;
+    email: string;
+    walletAddress: string;
+    profilePicture: string;
+  };
 }
 
-export default function SettingsModal({ isOpen, onClose, user }: SettingsModalProps) {
-  const [activeSettingsTab, setActiveSettingsTab] = useState("update-details")
+export default function SettingsModal({
+  isOpen,
+  onClose,
+  user,
+}: SettingsModalProps) {
+  const [activeSettingsTab, setActiveSettingsTab] = useState("update-details");
   const [formData, setFormData] = useState({
     name: user.name,
     email: user.email,
-  })
-  const [profilePicture, setProfilePicture] = useState(user.profilePicture)
-  const [loading, setLoading] = useState(false)
-  const [formLoading, setFormLoading] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const dispatch = useDispatch()
-  const { address } = useAccount()
+  });
+  const [profilePicture, setProfilePicture] = useState(user.profilePicture);
+  const [loading, setLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dispatch = useDispatch();
+  const { address } = useAccount();
 
   const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setFormLoading(true)
+    e.preventDefault();
+    setFormLoading(true);
 
     try {
       const response = await fetch("/api/updateDetails", {
@@ -46,85 +50,130 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
           email: formData.email,
           walletAddress: address || user.walletAddress,
         }),
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (response.ok) {
-          dispatch(updateUserDetails({ name: formData.name, email: formData.email }));
-        toast.success("Details updated successfully!")
-        onClose()
+        dispatch(
+          updateUserDetails({ name: formData.name, email: formData.email })
+        );
+        toast.success("Details updated successfully!");
+        onClose();
       } else {
-        toast.error(result.error || "Failed to update details")}
+        toast.error(result.error || "Failed to update details");
+      }
     } catch (error) {
       toast.error("An error occurred while updating details");
-      console.error("Error updating details:", error)
+      console.error("Error updating details:", error);
     } finally {
-      setFormLoading(false)
+      setFormLoading(false);
     }
-  }
+  };
 
-  const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleProfilePictureChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    setLoading(true)
+    setLoading(true);
 
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("walletAddress", address || user.walletAddress)
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("walletAddress", address || user.walletAddress);
 
     try {
       const res = await fetch("/api/changeProfile", {
         method: "POST",
         body: formData,
-      })
+      });
 
-      const result = await res.json()
+      const result = await res.json();
 
       if (result?.url) {
-        setProfilePicture(result.url)
-        dispatch(updateProfilePicture(result.url))
+        setProfilePicture(result.url);
+        dispatch(updateProfilePicture(result.url));
       } else {
-        console.error("Upload failed", result.error)
+        console.error("Upload failed", result.error);
       }
     } catch (error) {
-      console.error("Error uploading:", error)
+      console.error("Error uploading:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleRemovePhoto = () => {
-    setProfilePicture("")
-    dispatch(updateProfilePicture(""))
-  }
+    setProfilePicture("");
+    dispatch(updateProfilePicture(""));
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
       {/* Modal */}
       <div className="relative bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <h2 className="text-xl font-bold text-white">Settings</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors p-1"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Mobile Tab Navigation */}
+        <div className="lg:hidden border-b border-gray-700">
+          <div className="flex">
+            <button
+              onClick={() => setActiveSettingsTab("update-details")}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-all duration-300 relative ${
+                activeSettingsTab === "update-details"
+                  ? "text-white bg-gray-800/50"
+                  : "text-gray-300 hover:text-white hover:bg-gray-800/30"
+              }`}
+            >
+              Update Details
+              {activeSettingsTab === "update-details" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-orange-500 to-red-600" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveSettingsTab("update-avatar")}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-all duration-300 relative ${
+                activeSettingsTab === "update-avatar"
+                  ? "text-white bg-gray-800/50"
+                  : "text-gray-300 hover:text-white hover:bg-gray-800/30"
+              }`}
+            >
+              Update Avatar
+              {activeSettingsTab === "update-avatar" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-orange-500 to-red-600" />
+              )}
+            </button>
+          </div>
+        </div>
+
         {/* Content */}
-        <div className="grid grid-cols-4 gap-6 p-6">
-          {/* Left Sidebar - Settings Options */}
-          <div className="col-span-1 space-y-2">
+        <div className="lg:grid lg:grid-cols-4 lg:gap-6 p-6">
+          {/* Desktop Sidebar - Hidden on Mobile */}
+          <div className="hidden lg:block col-span-1 space-y-2">
             <button
               onClick={() => setActiveSettingsTab("update-details")}
               className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 relative ${
-                activeSettingsTab === "update-details" ? "text-white" : "text-gray-300 hover:text-white"
+                activeSettingsTab === "update-details"
+                  ? "text-white"
+                  : "text-gray-300 hover:text-white"
               }`}
             >
               Update Details
@@ -136,7 +185,9 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
             <button
               onClick={() => setActiveSettingsTab("update-avatar")}
               className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-300 relative ${
-                activeSettingsTab === "update-avatar" ? "text-white" : "text-gray-300 hover:text-white"
+                activeSettingsTab === "update-avatar"
+                  ? "text-white"
+                  : "text-gray-300 hover:text-white"
               }`}
             >
               Update Avatar
@@ -144,33 +195,43 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                 <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-gradient-to-r from-orange-500 to-red-600 rounded-full animate-pulse" />
               )}
             </button>
-            {/* Future options can be added here */}
           </div>
 
-          {/* Right Content - Settings Form */}
-          <div className="col-span-3">
+          {/* Content - Full width on mobile, 3/4 on desktop */}
+          <div className="lg:col-span-3">
             {activeSettingsTab === "update-details" && (
               <div className="space-y-6">
                 {/* Wallet Address Display */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 block">Wallet Address</label>
+                  <label className="text-sm font-medium text-gray-300 mb-2 block">
+                    Wallet Address
+                  </label>
                   <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-                    <p className="text-sm text-gray-300 font-mono break-all">{address || user.walletAddress}</p>
+                    <p className="text-sm text-gray-300 font-mono break-all">
+                      {address || user.walletAddress}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Wallet address cannot be changed</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Wallet address cannot be changed
+                  </p>
                 </div>
 
                 {/* Update Form */}
                 <form onSubmit={handleFormSubmit} className="space-y-4">
                   <div>
-                    <label htmlFor="name" className="text-sm font-medium text-gray-300 mb-2 block">
+                    <label
+                      htmlFor="name"
+                      className="text-sm font-medium text-gray-300 mb-2 block"
+                    >
                       Name
                     </label>
                     <input
                       id="name"
                       type="text"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
                       className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 transition-colors"
                       placeholder="Enter your name"
                       disabled={formLoading}
@@ -178,21 +239,26 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                   </div>
 
                   <div>
-                    <label htmlFor="email" className="text-sm font-medium text-gray-300 mb-2 block">
+                    <label
+                      htmlFor="email"
+                      className="text-sm font-medium text-gray-300 mb-2 block"
+                    >
                       Email
                     </label>
                     <input
                       id="email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
                       className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 transition-colors"
                       placeholder="Enter your email"
                       disabled={formLoading}
                     />
                   </div>
 
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-3 pt-4">
                     <button
                       type="submit"
                       disabled={formLoading}
@@ -217,9 +283,11 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
               <div className="space-y-6">
                 {/* Profile Picture Section */}
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-3 block">Profile Picture</label>
-                  <div className="flex items-center space-x-6">
-                    <div className="relative">
+                  <label className="text-sm font-medium text-gray-300 mb-3 block">
+                    Profile Picture
+                  </label>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-4 sm:space-y-0">
+                    <div className="relative self-center sm:self-auto">
                       <img
                         src={profilePicture || "/placeholder.svg"}
                         alt="Profile"
@@ -235,8 +303,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                       )}
                     </div>
                     <div className="flex-1">
-                      <div className="flex gap-3 mb-3">
-                        <label className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 cursor-pointer flex items-center">
+                      <div className="flex flex-col sm:flex-row gap-3 mb-3">
+                        <label className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 cursor-pointer flex items-center justify-center">
                           <Upload className="w-4 h-4 mr-2" />
                           Upload New Photo
                           <input
@@ -256,7 +324,8 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                         </button>
                       </div>
                       <p className="text-xs text-gray-500">
-                        Recommended: Square image, at least 400x400px. Max file size: 5MB.
+                        Recommended: Square image, at least 400x400px. Max file
+                        size: 5MB.
                       </p>
                     </div>
                   </div>
@@ -264,7 +333,9 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
 
                 {/* Current Avatar Preview */}
                 <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                  <h3 className="text-sm font-medium text-gray-300 mb-3">Current Avatar</h3>
+                  <h3 className="text-sm font-medium text-gray-300 mb-3">
+                    Current Avatar
+                  </h3>
                   <div className="flex items-center space-x-4">
                     <img
                       src={profilePicture || "/placeholder.svg"}
@@ -273,12 +344,14 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
                     />
                     <div>
                       <p className="text-white font-medium">{user.name}</p>
-                      <p className="text-gray-400 text-sm">This is how your avatar appears to others</p>
+                      <p className="text-gray-400 text-sm">
+                        This is how your avatar appears to others
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
                   <button
                     type="button"
                     onClick={onClose}
@@ -300,5 +373,5 @@ export default function SettingsModal({ isOpen, onClose, user }: SettingsModalPr
         </div>
       </div>
     </div>
-  )
+  );
 }

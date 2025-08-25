@@ -1,133 +1,140 @@
-"use client"
+"use client";
 
-import { Calendar, MapPin, Users, Search, Plus, User } from "lucide-react"
-import type React from "react"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { useSelector } from "react-redux"
-import { toast } from "sonner"
+import { Calendar, MapPin, Users, Search, Plus, User } from "lucide-react";
+import type React from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSelector } from "react-redux";
+import { toast } from "sonner";
 
 interface Event {
-  id: number
-  title: string
-  image: string
-  date: string
-  time: string
-  location: string
-  price: string
-  attendees: number
-  category: string
-  status: string
-  description?: string
-  organizer?: string
-  maxTickets?: number
-  totalTicketsSold?: number
-  startDateTime?: string
-  endDateTime?: string
-  organizedBy?: string
+  id: number;
+  title: string;
+  image: string;
+  date: string;
+  time: string;
+  location: string;
+  price: string;
+  attendees: number;
+  category: string;
+  status: string;
+  description?: string;
+  organizer?: string;
+  maxTickets?: number;
+  totalTicketsSold?: number;
+  startDateTime?: string;
+  endDateTime?: string;
+  organizedBy?: string;
 }
 
 interface RootState {
   user: {
-    profilePicture?: string
-    name?: string
-  }
+    profilePicture?: string;
+    name?: string;
+  };
 }
 
 interface APIEvent {
-  eventId: string
-  hash: string
-  organizer: string
-  chainId: string
-  eventName: string
-  ticketPrice: string
-  description: string
-  category: string
-  image: string
-  location: string
-  startDateTime: string
-  endDateTime: string
-  organizedBy: string
-  requirementsToAttend: string
-  whatsIncluded: string
-  agenda: string
+  eventId: string;
+  hash: string;
+  organizer: string;
+  chainId: string;
+  eventName: string;
+  ticketPrice: string;
+  description: string;
+  category: string;
+  image: string;
+  location: string;
+  startDateTime: string;
+  endDateTime: string;
+  organizedBy: string;
+  requirementsToAttend: string;
+  whatsIncluded: string;
+  agenda: string;
 }
 
 export default function ExploreEvents() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("All")
-  const [events, setEvents] = useState<Event[]>([])
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
-  const [isCreatingEvent, setIsCreatingEvent] = useState(false)
-  const [isNavigatingToProfile, setIsNavigatingToProfile] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const [isNavigatingToProfile, setIsNavigatingToProfile] = useState(false);
 
   // Get profile picture from Redux
-  const userProfile = useSelector((state: RootState) => state.user)
+  const userProfile = useSelector((state: RootState) => state.user);
 
   // Format date and time from string
   const formatDateTime = (dateTimeString: string) => {
     try {
       if (dateTimeString.includes("Invalid Date")) {
-        return { date: "TBD", time: "TBD" }
+        return { date: "TBD", time: "TBD" };
       }
-   const normalized = dateTimeString.replace(" at ", " ");
-    const date = new Date(normalized);
-          if (isNaN(date.getTime())) {
-        return { date: "TBD", time: "TBD" }
+      const normalized = dateTimeString.replace(" at ", " ");
+      const date = new Date(normalized);
+      if (isNaN(date.getTime())) {
+        return { date: "TBD", time: "TBD" };
       }
       const dateStr = date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
-      })
+      });
       const timeStr = date.toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
         hour12: true,
-      })
-      return { date: dateStr, time: timeStr }
+      });
+      return { date: dateStr, time: timeStr };
     } catch (error) {
-      return { date: "TBD", time: "TBD" }
+      return { date: "TBD", time: "TBD" };
     }
-  }
+  };
 
   // Determine event status
   const getEventStatus = (startDateTime?: string, endDateTime?: string) => {
-    if (!startDateTime || startDateTime.includes("Invalid Date")) return "Coming Soon"
+    if (!startDateTime || startDateTime.includes("Invalid Date"))
+      return "Coming Soon";
 
     try {
-      const now = new Date()
-      const start = new Date(startDateTime)
-      const end = endDateTime && !endDateTime.includes("Invalid Date") ? new Date(endDateTime) : null
+      const now = new Date();
+      const start = new Date(startDateTime);
+      const end =
+        endDateTime && !endDateTime.includes("Invalid Date")
+          ? new Date(endDateTime)
+          : null;
 
-      if (isNaN(start.getTime())) return "Coming Soon"
+      if (isNaN(start.getTime())) return "Coming Soon";
 
       if (now >= start && (!end || now <= end)) {
-        return "Live"
+        return "Live";
       } else if (end && now > end) {
-        return "Ended"
+        return "Ended";
       } else {
-        return "Selling"
+        return "Selling";
       }
     } catch (error) {
-      return "Coming Soon"
+      return "Coming Soon";
     }
-  }
+  };
 
   async function getEvents() {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await fetch("/api/getAllEvents")
+      const response = await fetch("/api/getAllEvents");
       if (!response.ok) {
-        throw new Error("Failed to fetch events")
+        throw new Error("Failed to fetch events");
       }
 
-      const apiEvents: APIEvent[] = await response.json()
+      const apiEvents: APIEvent[] = await response.json();
 
       const formattedEvents: Event[] = apiEvents.map((apiEvent) => {
-        const { date, time } = formatDateTime(apiEvent.startDateTime)
-        const status = getEventStatus(apiEvent.startDateTime, apiEvent.endDateTime)
+        const { date, time } = formatDateTime(apiEvent.startDateTime);
+        const status = getEventStatus(
+          apiEvent.startDateTime,
+          apiEvent.endDateTime
+        );
 
         return {
           id: Number.parseInt(apiEvent.eventId),
@@ -136,7 +143,7 @@ export default function ExploreEvents() {
           date,
           time,
           location: apiEvent.location || "TBD",
-          price: apiEvent.ticketPrice, 
+          price: apiEvent.ticketPrice,
           attendees: 0, // Default since API doesn't provide attendee info
           category: apiEvent.category || "General",
           status,
@@ -147,87 +154,88 @@ export default function ExploreEvents() {
           startDateTime: apiEvent.startDateTime,
           endDateTime: apiEvent.endDateTime,
           organizedBy: apiEvent.organizedBy,
-        }
-      })
+        };
+      });
 
-      setEvents(formattedEvents)
+      setEvents(formattedEvents);
 
       if (formattedEvents.length === 0) {
-        toast.info("No events found.")
+        toast.info("No events found.");
       }
     } catch (error) {
-      console.error("Error fetching events:", error)
-      toast.error("Failed to fetch events. Please try again later.")
+      console.error("Error fetching events:", error);
+      toast.error("Failed to fetch events. Please try again later.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   useEffect(() => {
-    getEvents()
-  }, [])
+    getEvents();
+  }, []);
 
   // Sort events: sooner events first, ended events last
   const sortEvents = (events: Event[]) => {
     return events.sort((a, b) => {
       // First, sort by status - ended events go to the bottom
-      if (a.status === "Ended" && b.status !== "Ended") return 1
-      if (b.status === "Ended" && a.status !== "Ended") return -1
+      if (a.status === "Ended" && b.status !== "Ended") return 1;
+      if (b.status === "Ended" && a.status !== "Ended") return -1;
 
       // If both are ended or both are not ended, sort by date (sooner events first)
       if (a.startDateTime && b.startDateTime) {
-        const dateA = new Date(a.startDateTime)
-        const dateB = new Date(b.startDateTime)
+        const dateA = new Date(a.startDateTime);
+        const dateB = new Date(b.startDateTime);
         if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
-          return dateA.getTime() - dateB.getTime()
+          return dateA.getTime() - dateB.getTime();
         }
       }
 
       // If one has no date, put it at the end
-      if (!a.startDateTime && b.startDateTime) return 1
-      if (a.startDateTime && !b.startDateTime) return -1
+      if (!a.startDateTime && b.startDateTime) return 1;
+      if (a.startDateTime && !b.startDateTime) return -1;
 
       // If neither has a date, maintain original order
-      return 0
-    })
-  }
+      return 0;
+    });
+  };
 
   // Filter and sort events based on search term and category
   const filteredEvents = sortEvents(
     events.filter((event) => {
-      const searchLower = searchTerm.toLowerCase()
+      const searchLower = searchTerm.toLowerCase();
       const matchesSearch =
         event.title.toLowerCase().includes(searchLower) ||
         event.location.toLowerCase().includes(searchLower) ||
         event.category.toLowerCase().includes(searchLower) ||
-        event.date.toLowerCase().includes(searchLower)
+        event.date.toLowerCase().includes(searchLower);
 
-      const matchesCategory = selectedCategory === "All" || event.category === selectedCategory
+      const matchesCategory =
+        selectedCategory === "All" || event.category === selectedCategory;
 
-      return matchesSearch && matchesCategory
-    }),
-  )
+      return matchesSearch && matchesCategory;
+    })
+  );
 
   // Handle event card click - redirect to event detail page
   const handleEventClick = (eventId: number) => {
-    router.push(`/event/${eventId}`)
-  }
+    router.push(`/event/${eventId}`);
+  };
 
   // Handle get ticket button click - redirect to event detail page
   const handleGetTicketClick = (eventId: number, e: React.MouseEvent) => {
-    e.stopPropagation() // Prevent event card click
-    router.push(`/event/${eventId}`)
-  }
+    e.stopPropagation(); // Prevent event card click
+    router.push(`/event/${eventId}`);
+  };
 
   const handleCreateEvent = async () => {
-    setIsCreatingEvent(true)
-    router.push("/create")
-  }
+    setIsCreatingEvent(true);
+    router.push("/create");
+  };
 
   const handleProfileClick = async () => {
-    setIsNavigatingToProfile(true)
-    router.push("/profile")
-  }
+    setIsNavigatingToProfile(true);
+    router.push("/profile");
+  };
 
   const categories = [
     "All",
@@ -241,25 +249,48 @@ export default function ExploreEvents() {
     "Meetup",
     "Festival",
     "Sports",
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 py-12">
       <div className="container mx-auto px-4">
         {/* Header with Profile and Create Event */}
-        <div className="flex items-center justify-between mb-8">
-          <div className=" flex-1">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              Explore Events
-            </h1>
-            <p className="text-xl text-gray-300">Discover amazing Web3 events happening around the world</p>
-          </div>
-          {/* Profile Picture and Create Event Button */}
-          <div className="flex items-center gap-4">
+        <div className="mb-8">
+          {/* Mobile Layout */}
+          <div className="sm:hidden">
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                Explore Events
+              </h1>
+              <button
+                onClick={handleProfileClick}
+                disabled={isNavigatingToProfile}
+                className={`w-10 h-10 rounded-full border-2 transition-colors overflow-hidden flex-shrink-0 ${
+                  isNavigatingToProfile
+                    ? "border-gray-600 opacity-50 cursor-not-allowed"
+                    : "border-orange-500 hover:border-orange-400"
+                }`}
+              >
+                {userProfile?.profilePicture ? (
+                  <img
+                    src={userProfile.profilePicture || "/placeholder.svg"}
+                    alt={userProfile.name || "Profile"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                    <User className="w-5 h-5 text-gray-300" />
+                  </div>
+                )}
+              </button>
+            </div>
+            <p className="text-gray-300 mb-4 text-sm leading-relaxed">
+              Discover amazing Web3 events happening around the world
+            </p>
             <button
               onClick={handleCreateEvent}
               disabled={isCreatingEvent}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+              className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
                 isCreatingEvent
                   ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                   : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
@@ -268,27 +299,54 @@ export default function ExploreEvents() {
               <Plus className="w-5 h-5" />
               {isCreatingEvent ? "Creating..." : "Create Event"}
             </button>
-            <button
-              onClick={handleProfileClick}
-              disabled={isNavigatingToProfile}
-              className={`w-12 h-12 cursor-pointer rounded-full border-2 transition-colors overflow-hidden ${
-                isNavigatingToProfile
-                  ? "border-gray-600 opacity-50 cursor-not-allowed"
-                  : "border-orange-500 hover:border-orange-400"
-              }`}
-            >
-              {userProfile?.profilePicture ? (
-                <img
-                  src={userProfile.profilePicture || "/placeholder.svg"}
-                  alt={userProfile.name || "Profile"}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-                  <User className="w-6 h-6 text-gray-300" />
-                </div>
-              )}
-            </button>
+          </div>
+
+          {/* Desktop Layout */}
+          <div className="hidden sm:flex items-center justify-between">
+            <div className="flex-1">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                Explore Events
+              </h1>
+              <p className="text-xl text-gray-300">
+                Discover amazing Web3 events happening around the world
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleCreateEvent}
+                disabled={isCreatingEvent}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  isCreatingEvent
+                    ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+                }`}
+              >
+                <Plus className="w-5 h-5" />
+                {isCreatingEvent ? "Creating..." : "Create Event"}
+              </button>
+              <button
+                onClick={handleProfileClick}
+                disabled={isNavigatingToProfile}
+                className={`w-12 h-12 cursor-pointer rounded-full border-2 transition-colors overflow-hidden ${
+                  isNavigatingToProfile
+                    ? "border-gray-600 opacity-50 cursor-not-allowed"
+                    : "border-orange-500 hover:border-orange-400"
+                }`}
+              >
+                {userProfile?.profilePicture ? (
+                  <img
+                    src={userProfile.profilePicture || "/placeholder.svg"}
+                    alt={userProfile.name || "Profile"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gray-700 flex items-center justify-center">
+                    <User className="w-6 h-6 text-gray-300" />
+                  </div>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -372,10 +430,10 @@ export default function ExploreEvents() {
                         event.status === "Live"
                           ? "bg-green-500 text-white"
                           : event.status === "Selling"
-                            ? "bg-orange-500 text-white"
-                            : event.status === "Sold Out"
-                              ? "bg-red-500 text-white"
-                              : "bg-gray-600 text-gray-200"
+                          ? "bg-orange-500 text-white"
+                          : event.status === "Sold Out"
+                          ? "bg-red-500 text-white"
+                          : "bg-gray-600 text-gray-200"
                       }`}
                     >
                       {event.status}
@@ -402,21 +460,30 @@ export default function ExploreEvents() {
                     </div>
                     <div className="flex items-center text-gray-300 text-sm">
                       <Users className="w-4 h-4 mr-2 text-orange-400" />
-                      {(event.attendees || 0).toLocaleString()} / {(event.maxTickets || 0).toLocaleString()} tickets
+                      {(event.attendees || 0).toLocaleString()} /{" "}
+                      {(event.maxTickets || 0).toLocaleString()} tickets
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="text-2xl font-bold text-white">{event.price} Eth</div>
+                    <div className="text-2xl font-bold text-white">
+                      {event.price} Eth
+                    </div>
                     <button
                       onClick={(e) => handleGetTicketClick(event.id, e)}
-                      disabled={event.status === "Sold Out" || event.status === "Ended"}
+                      disabled={
+                        event.status === "Sold Out" || event.status === "Ended"
+                      }
                       className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 ${
                         event.status === "Sold Out" || event.status === "Ended"
                           ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                           : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
                       }`}
                     >
-                      {event.status === "Sold Out" ? "Sold Out" : event.status === "Ended" ? "Ended" : "Get Ticket"}
+                      {event.status === "Sold Out"
+                        ? "Sold Out"
+                        : event.status === "Ended"
+                        ? "Ended"
+                        : "Get Ticket"}
                     </button>
                   </div>
                 </div>
@@ -429,7 +496,9 @@ export default function ExploreEvents() {
         {filteredEvents.length === 0 && !loading && (
           <div className="text-center py-12">
             <div className="text-gray-400 text-lg mb-4">
-              {events.length === 0 ? "No events available yet" : "No events found matching your criteria"}
+              {events.length === 0
+                ? "No events available yet"
+                : "No events found matching your criteria"}
             </div>
             {(searchTerm || selectedCategory !== "All") && (
               <div className="flex gap-4 justify-center">
@@ -455,5 +524,5 @@ export default function ExploreEvents() {
         )}
       </div>
     </div>
-  )
+  );
 }
