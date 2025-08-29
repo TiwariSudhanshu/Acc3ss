@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       organizer,
       chainId,
       ticketPrice,
-      approved: false, 
+      approved: true, 
     };
 
     const createdEvent = await Event.create(newEvent);

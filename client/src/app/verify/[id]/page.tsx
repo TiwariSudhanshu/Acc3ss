@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { getContract } from "@/contract/contract";
 import { useAccount } from "wagmi";
+import Image from "next/image";
 
 interface TicketEntry {
   ticketId: string;
@@ -685,13 +686,16 @@ export default function VerifyEventPage() {
         {/* Event Info Card */}
         <div className="bg-gray-800/50 rounded-2xl border border-gray-700 p-4 sm:p-6 mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-6">
-            <img
+            <Image
               src={
                 eventDetails.image || "/placeholder.svg?height=128&width=128"
               }
               alt={eventDetails.title}
+              width={128}
+              height={128}
               className="w-full sm:w-32 h-32 rounded-xl object-cover"
             />
+
             <div className="flex-1 w-full">
               <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">
                 {eventDetails.title}
@@ -825,14 +829,17 @@ export default function VerifyEventPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
                     {/* User Info */}
                     <div className="flex items-start sm:items-center space-x-3 sm:space-x-4 flex-1">
-                      <img
+                      <Image
                         src={
                           ticket.profilePicture ||
                           "/placeholder.svg?height=56&width=56"
                         }
                         alt={ticket.name}
+                        width={56}
+                        height={56}
                         className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-gray-600 flex-shrink-0"
                       />
+
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
                           <h4 className="font-semibold text-white text-base sm:text-lg truncate">
@@ -974,14 +981,17 @@ export default function VerifyEventPage() {
                 </div>
               ) : selectedTicket ? (
                 <div className="text-center mb-6">
-                  <img
+                  <Image
                     src={
                       selectedTicket.profilePicture ||
                       "/placeholder.svg?height=80&width=80"
                     }
                     alt={selectedTicket.name}
+                    width={80}
+                    height={80}
                     className="w-20 h-20 rounded-full object-cover border-2 border-gray-600 mx-auto mb-4"
                   />
+
                   <h3 className="text-xl font-semibold text-white mb-2 break-words">
                     {selectedTicket.name}
                   </h3>

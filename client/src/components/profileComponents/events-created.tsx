@@ -1,6 +1,7 @@
 "use client";
 
 import { Calendar, MapPin, Users, Star, Plus } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 interface Event {
@@ -99,9 +100,11 @@ export default function EventsCreated({
               className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 hover:border-orange-500/50 transition-all duration-300"
             >
               <div className="relative">
-                <img
+                <Image
                   src={event.image || "/placeholder.svg"}
                   alt={event.title}
+                  width={800}
+                  height={128}
                   className="w-full h-32 object-cover"
                 />
               </div>

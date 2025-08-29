@@ -1,6 +1,7 @@
 "use client";
 
 import { Calendar, MapPin, Ticket } from "lucide-react";
+import Image from "next/image";
 
 interface Event {
   id: number;
@@ -78,11 +79,14 @@ export default function OwnedTickets({
             className="bg-gray-800/50 rounded-xl border border-gray-700 hover:border-orange-500/50 transition-all duration-300 p-4"
           >
             <div className="flex items-start space-x-4">
-              <img
+              <Image
                 src={ticket.image || "/placeholder.svg"}
                 alt={ticket.title}
+                width={64}
+                height={64}
                 className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
               />
+
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-semibold text-white text-base truncate pr-2">

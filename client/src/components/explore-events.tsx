@@ -2,10 +2,12 @@
 
 import { Calendar, MapPin, Users, Search, Plus, User } from "lucide-react";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
+import Image from "next/image";
+import { useDebounce } from "use-debounce";
 
 interface Event {
   id: number;
@@ -55,6 +57,7 @@ interface APIEvent {
 
 export default function ExploreEvents() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchDebounced] = useDebounce(searchTerm, 300);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(false);
@@ -200,21 +203,23 @@ export default function ExploreEvents() {
   };
 
   // Filter and sort events based on search term and category
-  const filteredEvents = sortEvents(
-    events.filter((event) => {
-      const searchLower = searchTerm.toLowerCase();
-      const matchesSearch =
-        event.title.toLowerCase().includes(searchLower) ||
-        event.location.toLowerCase().includes(searchLower) ||
-        event.category.toLowerCase().includes(searchLower) ||
-        event.date.toLowerCase().includes(searchLower);
+  const filteredEvents = useMemo(() => {
+    return sortEvents(
+      events.filter((event) => {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch =
+          event.title.toLowerCase().includes(searchLower) ||
+          event.location.toLowerCase().includes(searchLower) ||
+          event.category.toLowerCase().includes(searchLower) ||
+          event.date.toLowerCase().includes(searchLower);
 
-      const matchesCategory =
-        selectedCategory === "All" || event.category === selectedCategory;
+        const matchesCategory =
+          selectedCategory === "All" || event.category === selectedCategory;
 
-      return matchesSearch && matchesCategory;
-    })
-  );
+        return matchesSearch && matchesCategory;
+      })
+    );
+  }, [events, searchTerm, selectedCategory]);
 
   // Handle event card click - redirect to event detail page
   const handleEventClick = (eventId: number) => {
@@ -272,10 +277,14 @@ export default function ExploreEvents() {
                 }`}
               >
                 {userProfile?.profilePicture ? (
-                  <img
+                  <Image
                     src={userProfile.profilePicture || "/placeholder.svg"}
                     alt={userProfile.name || "Profile"}
-                    className="w-full h-full object-cover"
+                    width={200}
+                    height={200}
+                    sizes="40px"
+                    className="w-full h-full object-cover rounded-full"
+                    priority={false}
                   />
                 ) : (
                   <div className="w-full h-full bg-gray-700 flex items-center justify-center">
@@ -335,9 +344,12 @@ export default function ExploreEvents() {
                 }`}
               >
                 {userProfile?.profilePicture ? (
-                  <img
+                  <Image
                     src={userProfile.profilePicture || "/placeholder.svg"}
                     alt={userProfile.name || "Profile"}
+                    width={200}
+                    height={200}
+                    sizes="100px"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -386,7 +398,7 @@ export default function ExploreEvents() {
         </div>
 
         {/* Search Results Info */}
-        {(searchTerm || selectedCategory !== "All") && (
+        {(searchDebounced || selectedCategory !== "All") && (
           <div className="mb-6">
             <p className="text-gray-300">
               {filteredEvents.length === 0
@@ -404,26 +416,66 @@ export default function ExploreEvents() {
 
         {/* Events Grid */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto mb-4"></div>
-              <p className="text-white text-lg">Loading events...</p>
-            </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="bg-gray-800/50 rounded-2xl overflow-hidden border border-gray-700"
+              >
+                {/* Image skeleton */}
+                <div className="w-full h-48 bg-gray-700 animate-pulse" />
+
+                {/* Content skeleton */}
+                <div className="p-6">
+                  {/* Title skeleton */}
+                  <div className="h-6 bg-gray-700 rounded mb-3 animate-pulse" />
+
+                  {/* Event details skeleton */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-gray-600 rounded mr-2" />
+                      <div className="h-4 bg-gray-600 rounded flex-1 animate-pulse" />
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-gray-600 rounded mr-2" />
+                      <div className="h-4 bg-gray-600 rounded flex-1 animate-pulse" />
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-gray-600 rounded mr-2" />
+                      <div className="h-4 bg-gray-600 rounded flex-1 animate-pulse" />
+                    </div>
+                  </div>
+
+                  {/* Price and button skeleton */}
+                  <div className="flex items-center justify-between">
+                    <div className="h-8 w-20 bg-gray-700 rounded animate-pulse" />
+                    <div className="h-10 w-24 bg-gray-700 rounded-lg animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredEvents.map((event) => (
+            {filteredEvents.map((event,index) => (
               <div
                 key={event.id}
                 onClick={() => handleEventClick(event.id)}
                 className="bg-gray-800/50 rounded-2xl overflow-hidden border border-gray-700 hover:border-orange-500/50 transition-all duration-300 group cursor-pointer"
               >
                 <div className="relative">
-                  <img
-                    src={event.image || "/placeholder.svg"}
-                    alt={event.title}
-                    className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
+                <Image
+  src={event.image || "/placeholder.svg"}
+  alt={event.title}
+  width={400}
+  height={200}
+  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+  className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+  priority={index < 3} // only first few images get priority
+  placeholder="blur"
+  blurDataURL="/tiny-placeholder.jpg" // small base64/low-res img
+/>
+
                   <div className="absolute top-4 left-4">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-medium ${

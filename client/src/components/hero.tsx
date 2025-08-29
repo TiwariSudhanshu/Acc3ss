@@ -2,70 +2,80 @@
 import { ArrowRight, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount, useConnect } from "wagmi";
-import RegisterModal from "./register-model";
-import { useState } from "react";
-// import { useDispatch, useSelector } from "react-redux";
+import { useEffect, useState } from "react";
 import { useAppDispatch } from "@/store/hook";
 import { setUser } from "@/store/userSlice";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+const RegisterModal = dynamic(() => import("./register-model"), {
+  ssr: false,
+});
 
 export default function Hero() {
   const { isConnected, address } = useAccount();
   const { connectAsync, connectors } = useConnect();
   const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
-  const dispatch = useAppDispatch();;
+  const dispatch = useAppDispatch();
   const [loader, setLoader] = useState(false);
-const router = useRouter();
-async function handleGetStarted() {
-  setLoader(true);
-  let walletAddress = address;
+  const router = useRouter();
 
-  try {
-    if (!isConnected || !address) {
-      const result = await connectAsync({ connector: connectors[0] });
-      walletAddress = result.accounts[0]; 
+  useEffect(() => {
+    router.prefetch("/explore");
+  }, [router]);
+
+  async function handleGetStarted() {
+    setLoader(true);
+    let walletAddress = address;
+
+    try {
+      if (!isConnected || !address) {
+        const result = await connectAsync({ connector: connectors[0] });
+        walletAddress = result.accounts[0];
+      }
+
+      const response = await fetch("/api/findUser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ walletAddress }),
+      });
+
+      if (!response.ok) {
+        toast.error("Failed to find user. Please try again.");
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!data.userFound) {
+        toast.error("User not found. Please register first.");
+        setRegisterModalOpen(true);
+      } else {
+        dispatch(
+          setUser({
+            name: data.user.name,
+            email: data.user.email,
+            walletAddress: data.user.walletAddress,
+            profilePicture:
+              data.user.profilePicture ||
+              "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
+            ticketsOwned: data.user.ticketsOwned || [],
+            eventsCreated: data.user.eventsCreated || [],
+            eventsAttended: data.user.eventsAttended || [],
+            eventTicketPurchased: data.user.eventTicketPurchased || [],
+          })
+        );
+        router.push("/explore");
+      }
+    } catch (error) {
+      console.error("Connection error:", error);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setLoader(false);
     }
-
-    const response = await fetch("/api/findUser", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ walletAddress }),
-    });
-
-    if (!response.ok) {
-      toast.error("Failed to find user. Please try again.");
-      return;
-    }
-
-    const data = await response.json();
-
-    if (!data.userFound) {
-      toast.error("User not found. Please register first.");
-      setRegisterModalOpen(true);
-    } else {
-          dispatch(setUser({
-          name: data.user.name,
-          email: data.user.email,
-          walletAddress: data.user.walletAddress,
-          profilePicture: data.user.profilePicture || "https://i.pinimg.com/736x/c7/e5/3b/c7e53b9868b5e924b4f7bb19993ce2d7.jpg",
-          ticketsOwned: data.user.ticketsOwned || [],
-          eventsCreated: data.user.eventsCreated || [],
-          eventsAttended: data.user.eventsAttended || [],
-          eventTicketPurchased: data.user.eventTicketPurchased || [],
-        }));
-      router.push("/explore");
-    }
-
-  } catch (error) {
-    console.error("Connection error:", error);
-    toast.error("Something went wrong. Please try again.");
-  } finally {
-    setLoader(false);
   }
-}
-
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -84,14 +94,15 @@ async function handleGetStarted() {
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-purple-200 to-pink-200 bg-clip-text text-transparent">
-            Access Isn’t Given. It’s {" "}
+            Access Isn't Given. It's{" "}
             <span className="bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
               Minted.
             </span>
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
-           Experience events like never before with true ownership, transparency, and security powered by NFTs.
+            Experience events like never before with true ownership,
+            transparency, and security powered by NFTs.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">

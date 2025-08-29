@@ -6,6 +6,7 @@ import { useDispatch } from "react-redux";
 import { useAccount } from "wagmi";
 import { updateProfilePicture, updateUserDetails } from "@/store/userSlice";
 import { toast } from "sonner";
+import Image from "next/image";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -288,11 +289,14 @@ export default function SettingsModal({
                   </label>
                   <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-4 sm:space-y-0">
                     <div className="relative self-center sm:self-auto">
-                      <img
+                      <Image
                         src={profilePicture || "/placeholder.svg"}
                         alt="Profile"
+                        width={96}
+                        height={96}
                         className="w-24 h-24 rounded-full object-cover border-4 border-orange-500/30"
                       />
+
                       <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-200 flex items-center justify-center cursor-pointer">
                         <Camera className="w-6 h-6 text-white" />
                       </div>
@@ -337,11 +341,14 @@ export default function SettingsModal({
                     Current Avatar
                   </h3>
                   <div className="flex items-center space-x-4">
-                    <img
+                    <Image
                       src={profilePicture || "/placeholder.svg"}
                       alt="Current Avatar"
+                      width={64}
+                      height={64}
                       className="w-16 h-16 rounded-full object-cover border-2 border-gray-600"
                     />
+
                     <div>
                       <p className="text-white font-medium">{user.name}</p>
                       <p className="text-gray-400 text-sm">

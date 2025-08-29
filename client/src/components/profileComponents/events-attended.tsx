@@ -1,28 +1,32 @@
-"use client"
+"use client";
 
-import { Calendar, MapPin, Trophy } from "lucide-react"
+import { Calendar, MapPin, Trophy } from "lucide-react";
+import Image from "next/image";
 
 interface Event {
-  id: number
-  title: string
-  image: string
-  date: string
-  time: string
-  location: string
-  price: string
-  attendees: number
-  category: string
-  status: string
-  organizer: string
-  ticketId?: number
+  id: number;
+  title: string;
+  image: string;
+  date: string;
+  time: string;
+  location: string;
+  price: string;
+  attendees: number;
+  category: string;
+  status: string;
+  organizer: string;
+  ticketId?: number;
 }
 
 interface EventsAttendedProps {
-  eventsAttended: Event[]
-  isLoading: boolean
+  eventsAttended: Event[];
+  isLoading: boolean;
 }
 
-export default function EventsAttended({ eventsAttended, isLoading }: EventsAttendedProps) {
+export default function EventsAttended({
+  eventsAttended,
+  isLoading,
+}: EventsAttendedProps) {
   if (isLoading) {
     return (
       <div>
@@ -34,7 +38,10 @@ export default function EventsAttended({ eventsAttended, isLoading }: EventsAtte
         </div>
         <div className="grid md:grid-cols-2 gap-6">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 animate-pulse">
+            <div
+              key={i}
+              className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 animate-pulse"
+            >
               <div className="w-full h-32 bg-gray-700"></div>
               <div className="p-4 space-y-3">
                 <div className="h-4 bg-gray-700 rounded w-3/4"></div>
@@ -45,7 +52,7 @@ export default function EventsAttended({ eventsAttended, isLoading }: EventsAtte
           ))}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -63,7 +70,13 @@ export default function EventsAttended({ eventsAttended, isLoading }: EventsAtte
             className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700 hover:border-orange-500/50 transition-all duration-300"
           >
             <div className="relative">
-              <img src={event.image || "/placeholder.svg"} alt={event.title} className="w-full h-32 object-cover" />
+              <Image
+                src={event.image || "/placeholder.svg"}
+                alt={event.title}
+                width={800}
+                height={128}
+                className="w-full h-32 object-cover"
+              />
             </div>
             <div className="p-4">
               <h3 className="font-semibold text-white mb-2">{event.title}</h3>
@@ -82,5 +95,5 @@ export default function EventsAttended({ eventsAttended, isLoading }: EventsAtte
         ))}
       </div>
     </div>
-  )
+  );
 }

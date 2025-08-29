@@ -1,30 +1,31 @@
-"use client"
+"use client";
 
-import { X, Calendar, MapPin, Users } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { X, Calendar, MapPin, Users } from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 interface Event {
-  id: number
-  title: string
-  image: string
-  date: string
-  time: string
-  location: string
-  price: string
-  attendees: number
-  category: string
-  status: string
-  organizer: string
-  ticketId?: number
+  id: number;
+  title: string;
+  image: string;
+  date: string;
+  time: string;
+  location: string;
+  price: string;
+  attendees: number;
+  category: string;
+  status: string;
+  organizer: string;
+  ticketId?: number;
 }
 
 interface ManageEventModalProps {
-  isOpen: boolean
-  onClose: () => void
-  selectedEvent: Event | null
-  handleWithdraw: (eventId: number) => void
-  withdrawalLoading: { [key: number]: boolean }
-  withdrawnEvents: Set<number>
+  isOpen: boolean;
+  onClose: () => void;
+  selectedEvent: Event | null;
+  handleWithdraw: (eventId: number) => void;
+  withdrawalLoading: { [key: number]: boolean };
+  withdrawnEvents: Set<number>;
 }
 
 export default function ManageEventModal({
@@ -35,9 +36,9 @@ export default function ManageEventModal({
   withdrawalLoading,
   withdrawnEvents,
 }: ManageEventModalProps) {
-  const router = useRouter()
+  const router = useRouter();
 
-  if (!isOpen || !selectedEvent) return null
+  if (!isOpen || !selectedEvent) return null;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -55,13 +56,18 @@ export default function ManageEventModal({
           <div className="space-y-6">
             {/* Event Details */}
             <div className="flex items-start space-x-4">
-              <img
+              <Image
                 src={selectedEvent.image || "/placeholder.svg"}
                 alt={selectedEvent.title}
+                width={96}
+                height={96}
                 className="w-24 h-24 rounded-lg object-cover"
               />
+
               <div className="flex-1">
-                <h3 className="text-xl font-semibold text-white mb-2">{selectedEvent.title}</h3>
+                <h3 className="text-xl font-semibold text-white mb-2">
+                  {selectedEvent.title}
+                </h3>
                 <div className="space-y-2 text-sm text-gray-300">
                   <div className="flex items-center">
                     <Calendar className="w-4 h-4 mr-2 text-orange-400" />
@@ -82,11 +88,15 @@ export default function ManageEventModal({
             {/* Event Stats */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                <div className="text-2xl font-bold text-white">{selectedEvent.attendees}</div>
+                <div className="text-2xl font-bold text-white">
+                  {selectedEvent.attendees}
+                </div>
                 <div className="text-sm text-gray-400">Total Attendees</div>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                <div className="text-2xl font-bold text-white">{selectedEvent.price}</div>
+                <div className="text-2xl font-bold text-white">
+                  {selectedEvent.price}
+                </div>
                 <div className="text-sm text-gray-400">Ticket Price</div>
               </div>
             </div>
@@ -99,7 +109,10 @@ export default function ManageEventModal({
                 <span className="text-xl font-bold text-green-400">
                   {selectedEvent.price === "Free"
                     ? "Free Event"
-                    : `${(Number(selectedEvent.price.replace(" ETH", "")) * selectedEvent.attendees).toFixed(3)} ETH`}
+                    : `${(
+                        Number(selectedEvent.price.replace(" ETH", "")) *
+                        selectedEvent.attendees
+                      ).toFixed(3)} ETH`}
                 </span>
               </div>
               {selectedEvent.price !== "Free" && (
@@ -142,11 +155,13 @@ export default function ManageEventModal({
 
             {/* Verify Attendee Section */}
             <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-              <h4 className="text-lg font-semibold text-white mb-3">Event Management</h4>
+              <h4 className="text-lg font-semibold text-white mb-3">
+                Event Management
+              </h4>
               <button
                 onClick={() => {
-                  onClose()
-                  router.push(`/verify/${selectedEvent.id}`)
+                  onClose();
+                  router.push(`/verify/${selectedEvent.id}`);
                 }}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center"
               >
@@ -168,5 +183,5 @@ export default function ManageEventModal({
         </div>
       </div>
     </div>
-  )
+  );
 }
