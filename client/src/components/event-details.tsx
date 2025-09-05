@@ -18,6 +18,7 @@ import ShareModal from "./share-model";
 import BuyTicketModal from "./buy-ticket-modal";
 import { useAccount } from "wagmi";
 import Image from "next/image";
+import { getContract } from "@/contract/contract";
 
 interface Speaker {
   id: string;
@@ -281,7 +282,13 @@ export default function EventDetails() {
 
   const getEventData = async (eventId: string) => {
     setLoading(true);
-    setOrganizerLoading(true); // Set organizer loading initially
+    setOrganizerLoading(true); 
+    // 👇 only try contract if wallet exists
+    let eventOnChain;
+      if (typeof window !== "undefined" && window.ethereum) {
+        const contract = await getContract();
+        eventOnChain = await contract.getEventDetails(eventId.toString());
+      }
     try {
       const response = await fetch("/api/getAllEvents", {
         method: "POST",
@@ -362,8 +369,8 @@ export default function EventDetails() {
         endDate: endDate?.date,
         location: apiEvent.location || "TBD",
         price: apiEvent.ticketPrice,
-        totalSupply: 100, // Default since API doesn't provide this info
-        sold: 0, // Default since API doesn't provide this info
+        totalSupply: eventOnChain ? Number(eventOnChain.maxTickets) : 0,
+        sold: eventOnChain ? Number(eventOnChain.totalTicketsSold) : 0,
         category: apiEvent.category || "General",
         status,
         organizer: finalOrganizerDetails, // Assign the determined organizer details
