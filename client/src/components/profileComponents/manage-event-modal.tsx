@@ -17,6 +17,7 @@ interface Event {
   status: string;
   organizer: string;
   ticketId?: number;
+  withdrawalAmount?: number;
 }
 
 interface ManageEventModalProps {
@@ -109,15 +110,13 @@ export default function ManageEventModal({
                 <span className="text-xl font-bold text-green-400">
                   {selectedEvent.price === "Free"
                     ? "Free Event"
-                    : `${(
-                        Number(selectedEvent.price.replace(" ETH", "")) *
-                        selectedEvent.attendees
-                      ).toFixed(3)} ETH`}
+                    : `${selectedEvent.withdrawalAmount} ETH`}
                 </span>
               </div>
               {selectedEvent.price !== "Free" && (
                 <>
-                  {withdrawnEvents.has(selectedEvent.id) ? (
+                  {withdrawnEvents.has(selectedEvent.id) ||
+                  selectedEvent.withdrawalAmount === 0 ? (
                     <div className="w-full bg-gray-600 text-gray-300 py-2 px-4 rounded-lg font-medium text-center border border-gray-500">
                       ✓ Already Withdrawn
                     </div>
